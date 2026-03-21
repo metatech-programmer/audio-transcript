@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 /**
  * POST /api/summarize
  * Generate structured summary from transcript using LLM
+ * Supports Spanish and English transcripts with language-specific prompts
  */
 export async function POST(request: NextRequest) {
   try {
-    const { transcript } = await request.json();
+    const { transcript, language = 'en' } = await request.json();
 
     if (!transcript || typeof transcript !== 'string') {
       return NextResponse.json(
@@ -29,12 +30,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Chunk transcript if too long (prevent token limits)
-    const maxChunkSize = 4000;
+    const maxChunkSize = 5000;
     const chunks = chunkTranscript(transcript, maxChunkSize);
 
     const chunkSummaries: string[] = [];
     for (const chunk of chunks) {
-      const chunkPrompt = `Summarize this lecture chunk in concise bullet points:\n\n${chunk}`;
+      const chunkPrompt = getChunkPrompt(chunk, language);
       const chunkResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
           model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: chunkPrompt }],
           temperature: 0.2,
-          max_tokens: 600,
+          max_tokens: 800,
         }),
       });
 
@@ -65,18 +66,7 @@ export async function POST(request: NextRequest) {
     const consolidatedInput =
       chunkSummaries.length > 0 ? chunkSummaries.join('\n\n') : transcript;
 
-    const prompt = `You are an expert lecture summarizer. Analyze the following lecture transcript and provide a structured summary in JSON format.
-
-Transcript:
-${consolidatedInput}
-
-Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
-{
-  "executiveSummary": "A 2-3 sentence summary of the entire lecture",
-  "keyPoints": ["point 1", "point 2", "point 3", "point 4", "point 5"],
-  "lectureNotes": "Detailed structured notes from the lecture",
-  "actionableInsights": ["insight 1", "insight 2", "insight 3"]
-}`;
+    const prompt = getFinalPrompt(consolidatedInput, language);
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -92,8 +82,8 @@ Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
             content: prompt,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 1500,
+        temperature: 0.4,
+        max_tokens: 2500,
       }),
     });
 
@@ -130,6 +120,67 @@ Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
       error instanceof Error ? error.message : 'Summarization failed';
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function getChunkPrompt(chunk: string, language: string): string {
+  if (language === 'es') {
+    return `Analiza este fragmento de una clase y genera un resumen en puntos clave, manteniendo todos los conceptos, definiciones y ejemplos importantes:\n\n${chunk}`;
+  }
+  return `Analyze this lecture fragment and create a summary with key point bullets, keeping all important concepts, definitions and examples:\n\n${chunk}`;
+}
+
+function getFinalPrompt(consolidatedInput: string, language: string): string {
+  if (language === 'es') {
+    return `Eres un experto en resumir clases universitarias. Tu objetivo es generar notas detalladas y bien estructuradas, como si fueras un estudiante excelente tomando notas en un cuaderno.
+
+Analiza la siguiente transcripción de una clase completa (que puede durar 1-3 horas) y proporciona un resumen estructurado en formato JSON.
+
+TRANSCRIPCIÓN:
+${consolidatedInput}
+
+Responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional) en este formato exacto:
+{
+  "executiveSummary": "Resumen ejecutivo de 2-3 oraciones que capture la esencia completa de la clase",
+  "keyPoints": [
+    "Punto 1: Concepto u idea principal con detalles",
+    "Punto 2: Concepto u idea principal con detalles",
+    "Punto 3: Concepto u idea principal con detalles",
+    "Punto 4: Concepto u idea principal con detalles",
+    "Punto 5: Concepto u idea principal con detalles"
+  ],
+  "lectureNotes": "Notas detalladas y estructuradas como un cuaderno bien organizado. Incluye:\n- TEMAS PRINCIPALES: Títulos y subtemas principales\n- DEFINICIONES: Conceptos clave y sus definiciones\n- EJEMPLOS: Ejemplos específicos mencionados\n- EXPLICACIONES: Detalles técnicos y explicaciones profundas\n- ESTRUCTURA LÓGICA: Cómo conectan los conceptos\n- CONEXIONES: Relaciones entre temas\n\nFormat como texto estruturado con saltos de línea, sin viñetas. Sé lo más detallado posible.",
+  "actionableInsights": [
+    "Insight 1: Aplicación práctica o concepto a recordar",
+    "Insight 2: Aplicación práctica o concepto a recordar",
+    "Insight 3: Aplicación práctica o concepto a recordar"
+  ]
+}`;
+  }
+
+  return `You are an expert in summarizing university lectures. Your goal is to generate detailed and well-structured notes, as if you were an excellent student taking notes in a notebook.
+
+Analyze the following transcript of a complete lecture (which can last 1-3 hours) and provide a structured summary in JSON format.
+
+TRANSCRIPT:
+${consolidatedInput}
+
+Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
+{
+  "executiveSummary": "Executive summary of 2-3 sentences that captures the complete essence of the lecture",
+  "keyPoints": [
+    "Point 1: Main concept or idea with details",
+    "Point 2: Main concept or idea with details",
+    "Point 3: Main concept or idea with details",
+    "Point 4: Main concept or idea with details",
+    "Point 5: Main concept or idea with details"
+  ],
+  "lectureNotes": "Detailed and structured notes like a well-organized notebook. Include:\n- MAIN TOPICS: Main titles and subtopics mentioned\n- DEFINITIONS: Key concepts and their definitions\n- EXAMPLES: Specific examples provided\n- EXPLANATIONS: Technical details and deep explanations\n- LOGICAL STRUCTURE: How concepts connect\n- CONNECTIONS: Relationships between topics\n\nFormat as structured text with line breaks, without bullet points. Be as detailed as possible.",
+  "actionableInsights": [
+    "Insight 1: Practical application or key concept to remember",
+    "Insight 2: Practical application or key concept to remember",
+    "Insight 3: Practical application or key concept to remember"
+  ]
+}`;
 }
 
 function normalizeSummary(input: unknown) {

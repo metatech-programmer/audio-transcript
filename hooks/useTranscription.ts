@@ -55,7 +55,7 @@ export function useSummarization() {
   const [error, setError] = useState<string | null>(null);
   const { setSummarizing } = useAppStore();
 
-  const summarize = async (transcript: string): Promise<Summary> => {
+  const summarize = async (transcript: string, language: 'en' | 'es' = 'en'): Promise<Summary> => {
     setLoading(true);
     setSummarizing(true);
     setError(null);
@@ -64,7 +64,7 @@ export function useSummarization() {
       const response = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript, language }),
       });
 
       if (!response.ok) {

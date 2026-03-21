@@ -111,7 +111,7 @@ export default function RecorderComponent({
       if (latestTranscript.length > 100) {
         setStore_Summarizing(true);
         try {
-          summary = await summarize(latestTranscript);
+          summary = await summarize(latestTranscript, recorder.language);
         } catch (err) {
           console.error('Auto-summarize failed:', err);
           // Continue without summary
@@ -151,242 +151,237 @@ export default function RecorderComponent({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-white via-rose-50 to-amber-50 p-5 shadow-xl sm:p-8">
-        <div className="mb-6">
-          <p className="mb-2 inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm">
-            Study Buddy Recorder
-          </p>
-          <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-            Graba tu clase con calma
-          </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Nosotros te ayudamos con transcripcion en vivo y resumen automatico.
-          </p>
-        </div>
+    <div className="flex-1 overflow-y-auto">
+      <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 p-4 md:p-8 flex items-center justify-center">
+        <div className="w-full max-w-2xl">
+          {/* Main Card */}
+          <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-sm p-6 md:p-10 shadow-xl hover:shadow-2xl transition">
+            {/* Header */}
+            <div className="mb-8">
+              <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-100 to-green-100 px-4 py-2 text-sm font-semibold text-emerald-700 mb-4">
+                🎙️ Grabadora en Vivo
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">
+                Captura tu clase
+              </h2>
+              <p className="text-slate-600">
+                Transcripción automática + Resumen inteligente en tu idioma
+              </p>
+            </div>
 
-        {/* Language Selector */}
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium text-slate-700">
-            Lecture Language
-          </label>
-          <select
-            value={recorder.language}
-            onChange={(e) =>
-              setLanguage(e.target.value as 'en' | 'es')
-            }
-            disabled={isRecording}
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            <option value="en">English</option>
-            <option value="es">Spanish (Español)</option>
-          </select>
-        </div>
+            {/* Settings Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              {/* Language */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  🌐 Idioma
+                </label>
+                <select
+                  value={recorder.language}
+                  onChange={(e) =>
+                    setLanguage(e.target.value as 'en' | 'es')
+                  }
+                  disabled={isRecording}
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 bg-slate-50"
+                >
+                  <option value="es">🇪🇸 Español</option>
+                  <option value="en">🇺🇸 English</option>
+                </select>
+              </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Live Engine
-            </label>
-            <select
-              value={liveEngineMode}
-              onChange={(e) =>
-                setLiveEngineMode(e.target.value as 'auto' | 'browser' | 'api')
-              }
-              disabled={isRecording}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              <option value="auto">Auto (recommended)</option>
-              <option value="browser">Browser Speech (free)</option>
-              <option value="api">Whisper API</option>
-            </select>
-          </div>
+              {/* Engine */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  ⚡ Motor
+                </label>
+                <select
+                  value={liveEngineMode}
+                  onChange={(e) =>
+                    setLiveEngineMode(e.target.value as 'auto' | 'browser' | 'api')
+                  }
+                  disabled={isRecording}
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 bg-slate-50"
+                >
+                  <option value="auto">Auto (Recomendado)</option>
+                  <option value="browser">Navegador (Gratis)</option>
+                  <option value="api">Whisper API</option>
+                </select>
+              </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">
-              Dialect
-            </label>
-            <select
-              value={selectedDialect}
-              onChange={(e) => setSelectedDialect(e.target.value)}
-              disabled={isRecording}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              <option value="es-ES">Español (España)</option>
-              <option value="es-MX">Español (México)</option>
-              <option value="en-US">English (US)</option>
-              <option value="en-GB">English (UK)</option>
-            </select>
-          </div>
-        </div>
+              {/* Dialect */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  🗣️ Dialecto
+                </label>
+                <select
+                  value={selectedDialect}
+                  onChange={(e) => setSelectedDialect(e.target.value)}
+                  disabled={isRecording}
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 bg-slate-50"
+                >
+                  <option value="es-ES">Español (España)</option>
+                  <option value="es-MX">Español (México)</option>
+                  <option value="en-US">English (US)</option>
+                  <option value="en-GB">English (UK)</option>
+                </select>
+              </div>
+            </div>
 
-        {/* Recording Timer */}
-        <div className="mb-8 rounded-xl border border-white/70 bg-white/80 py-5 text-center shadow-sm">
-          <div className="mb-2 text-4xl font-mono font-bold text-rose-600">
-            {formatDuration(duration)}
-          </div>
-          <div className="flex justify-center">
-            {isRecording && (
-              <div className="inline-flex items-center gap-2 text-rose-700">
-                <div className="h-3 w-3 rounded-full bg-rose-500 animate-pulse"></div>
-                <span className="text-sm font-medium">Grabando ahora...</span>
+            {/* Timer Display */}
+            <div className="mb-8 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-6 text-center">
+              <div className="text-5xl md:text-6xl font-mono font-bold text-indigo-600 mb-2">
+                {formatDuration(duration)}
+              </div>
+              {isRecording && (
+                <div className="flex items-center justify-center gap-2 text-emerald-700 font-medium">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Grabando en vivo...
+                </div>
+              )}
+            </div>
+
+            {/* Real-time Feedback - Collapsible */}
+            <div className="mb-8 rounded-2xl border border-slate-200/60 bg-slate-50/50 p-5 overflow-hidden">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-semibold text-slate-900">📊 Retroalimentación</h3>
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                    isRecording
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {isRecording ? 'Activo' : 'Inactivo'}
+                </span>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-200/50">
+                  <span className="text-xs text-slate-500 font-medium">Nivel</span>
+                  <span className="text-lg font-bold text-indigo-600">{audioLevel}%</span>
+                </div>
+                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-200/50">
+                  <span className="text-xs text-slate-500 font-medium">Chunks</span>
+                  <span className="text-lg font-bold text-indigo-600">{processedChunks}</span>
+                </div>
+                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-200/50">
+                  <span className="text-xs text-slate-500 font-medium">Palabras</span>
+                  <span className="text-lg font-bold text-indigo-600">{wordCount}</span>
+                </div>
+              </div>
+
+              {/* Level Bar */}
+              <div className="mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-150 ${
+                        audioLevel > 65
+                          ? 'bg-emerald-500'
+                          : audioLevel > 30
+                          ? 'bg-amber-500'
+                          : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${isRecording ? audioLevel : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Equalizer */}
+              <div className="mb-3 flex items-end justify-center gap-1.5 h-8 bg-white rounded-lg border border-slate-200/50 p-2">
+                {eqLevels.map((level, index) => (
+                  <div
+                    key={`eq-${index}`}
+                    className={`flex-1 rounded-sm transition-all duration-150 ${
+                      isRecording ? 'bg-gradient-to-t from-indigo-500 to-blue-500' : 'bg-slate-300'
+                    }`}
+                    style={{
+                      height: `${level}%`,
+                      opacity: isRecording ? 1 : 0.5,
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Status Text */}
+              {isRecording && !recorder.transcript && (
+                <p className="text-xs text-indigo-700 font-medium">
+                  🎤 Habla nearamente. El texto aparecerá pronto...
+                </p>
+              )}
+
+              {lastChunkText && (
+                <div className="mt-3 p-2.5 rounded-lg bg-white border border-indigo-200/50">
+                  <p className="text-xs text-slate-500 font-medium mb-1">Última frase detectada:</p>
+                  <p className="text-sm text-slate-800 leading-relaxed">{lastChunkText}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Transcript Display - Expandable */}
+            {recorder.transcript && (
+              <div className="mb-8 rounded-2xl border border-slate-200/60 bg-blue-50/50 p-5">
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  ✍️ Transcripción en Vivo
+                  {isRecording && (
+                    <span className="text-xs font-normal text-blue-600 animate-pulse">
+                      • actualizando...
+                    </span>
+                  )}
+                </h3>
+                <div className="p-4 bg-white rounded-lg max-h-40 overflow-y-auto border border-blue-200">
+                  <p className="text-slate-800 text-sm leading-relaxed">{recorder.transcript}</p>
+                </div>
+                <p className="text-xs text-slate-600 mt-2">
+                  📖 {Math.ceil(recorder.transcript.split(/\s+/).length / 150)} min aprox.
+                </p>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {error && (
+              <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-400 rounded-lg">
+                <p className="text-red-800 text-sm font-medium">⚠️ {error}</p>
+              </div>
+            )}
+
+            {/* Control Buttons */}
+            <div className="flex gap-4 mb-4">
+              <button
+                onClick={handleStart}
+                disabled={isRecording || isProcessing || summarizing}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-6 py-4 font-bold text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100"
+              >
+                <Mic size={20} />
+                Empezar Grabación
+              </button>
+
+              <button
+                onClick={handleStop}
+                disabled={!isRecording || isProcessing || summarizing}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-6 py-4 font-bold text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100"
+              >
+                <Square size={20} />
+                Detener
+              </button>
+            </div>
+
+            {/* Processing Status */}
+            {(isProcessing || summarizing) && (
+              <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-indigo-900 text-sm font-medium">
+                    {isProcessing && '⏳ Procesando audio...'}
+                    {summarizing && '🤖 Generando resumen...'}
+                  </span>
+                </div>
               </div>
             )}
           </div>
         </div>
-
-        {/* Real-time Feedback */}
-        <div className="mb-6 p-4 rounded-lg border border-slate-200 bg-slate-50">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h3 className="font-semibold text-slate-900">Live Feedback</h3>
-            <span
-              className={`text-xs px-2 py-1 rounded-full font-medium ${
-                isRecording
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-slate-200 text-slate-700'
-              }`}
-            >
-              {isRecording ? liveStatusLabel : 'Not recording'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs text-slate-600 mb-3">
-            <p>
-              Chunks processed: <span className="font-semibold">{processedChunks}</span>
-            </p>
-            <p>
-              Words detected: <span className="font-semibold">{wordCount}</span>
-            </p>
-          </div>
-
-          <p className="mb-3 text-xs text-slate-500">
-            Live engine:{' '}
-            <span className="font-semibold text-slate-700">
-              {liveEngine === 'browser' ? 'Browser Speech (free)' : 'Whisper API fallback'}
-            </span>
-          </p>
-
-          <div className="mb-3">
-            <div className="flex items-center justify-between text-xs text-slate-600 mb-1">
-              <span>Mic input level</span>
-              <span className="font-semibold">{audioLevel}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
-              <div
-                className={`h-full transition-all duration-150 ${
-                  audioLevel > 65
-                    ? 'bg-green-500'
-                    : audioLevel > 30
-                    ? 'bg-yellow-500'
-                    : 'bg-blue-500'
-                }`}
-                style={{ width: `${isRecording ? audioLevel : 0}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2">
-            <div className="flex items-end justify-center gap-1.5 h-10">
-              {eqLevels.map((level, index) => (
-                <div
-                  key={`eq-${index}`}
-                  className={`w-1.5 rounded-sm transition-all duration-150 ${
-                    isRecording ? 'bg-blue-500' : 'bg-slate-300'
-                  }`}
-                  style={{
-                    height: `${level}%`,
-                    opacity: isRecording ? 1 : 0.6,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {isRecording && !recorder.transcript && (
-            <p className="text-sm text-blue-700">
-              Habla con naturalidad. Tu texto aparecera cuando llegue el primer bloque estable.
-            </p>
-          )}
-
-          {lastChunkText && (
-            <div className="mt-2 p-2 rounded bg-white border border-slate-200">
-              <p className="text-xs text-slate-500 mb-1">Last detected phrase</p>
-              <p className="text-sm text-slate-800">{lastChunkText}</p>
-            </div>
-          )}
-
-          {isLiveTranscribing && (
-            <p className="mt-2 text-xs text-blue-600 animate-pulse">
-              Sending audio chunk to transcription service...
-            </p>
-          )}
-        </div>
-
-        {/* Transcript Display */}
-        {recorder.transcript && (
-          <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2">
-              Transcript (Live)
-              {isRecording && (
-                <span className="text-xs font-normal text-blue-600 animate-pulse">
-                  ● updating...
-                </span>
-              )}
-            </h3>
-            <p className="text-slate-700 text-sm max-h-32 overflow-y-auto">
-              {recorder.transcript}
-            </p>
-            <p className="text-xs text-slate-500 mt-2">
-              {Math.ceil(recorder.transcript.split(/\s+/).length / 200)} minutes
-              of content
-            </p>
-          </div>
-        )}
-
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Control Buttons */}
-        <div className="flex gap-4">
-          <button
-            onClick={handleStart}
-            disabled={
-              isRecording || isProcessing || summarizing
-            }
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Mic size={20} />
-            Empezar
-          </button>
-
-          <button
-            onClick={handleStop}
-            disabled={
-              !isRecording || isProcessing || summarizing
-            }
-            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose-500 px-6 py-3 font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Square size={20} />
-            Detener
-          </button>
-        </div>
-
-        {/* Processing Status */}
-        {(isProcessing || summarizing) && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-blue-800 text-sm font-medium">
-                {isProcessing && 'Processing audio...'}
-                {summarizing && 'Generating summary...'}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

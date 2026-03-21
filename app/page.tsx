@@ -63,92 +63,115 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-transparent">
+    <main className="flex h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
       {/* Sidebar */}
-      <div className="hidden md:block w-80">
-        <SessionHistory
-          sessions={sessions}
-          currentSession={currentSession}
-          onSelectSession={handleSelectSession}
-          onDeleteSession={handleDeleteSession}
-          onCreateNew={handleCreateNew}
-        />
+      <div className="hidden lg:flex lg:w-80 lg:flex-col bg-white border-r border-slate-200/60 shadow-sm overflow-hidden">
+        <div className="sticky top-0 z-20 px-4 py-4 bg-gradient-to-r from-white to-blue-50 border-b border-slate-200/60">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+            📚 Study Buddy
+          </h1>
+          <p className="text-xs text-slate-600 mt-1">Tu asistente de notas</p>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <SessionHistory
+            sessions={sessions}
+            currentSession={currentSession}
+            onSelectSession={handleSelectSession}
+            onDeleteSession={handleDeleteSession}
+            onCreateNew={handleCreateNew}
+          />
+        </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile Header */}
-        <div className="md:hidden border-b border-white/70 bg-white/80 p-4 backdrop-blur-sm flex gap-2">
-          <button
-            onClick={handleCreateNew}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              view === 'recorder'
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-            }`}
-          >
-            Grabar
-          </button>
-          <button
-            onClick={() => setView('session')}
-            disabled={!currentSession}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              view === 'session' && currentSession
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-200 text-slate-700 hover:bg-slate-300 disabled:opacity-50'
-            }`}
-          >
-            Ver
-          </button>
+        {/* Mobile/Tablet Header */}
+        <div className="lg:hidden sticky top-0 z-20 border-b border-white/70 bg-white/80 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3">
+            <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+              📚 Study Buddy
+            </h1>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCreateNew}
+                className={`px-3 py-1.5 rounded-lg font-medium text-sm transition ${
+                  view === 'recorder'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Grabar
+              </button>
+              <button
+                onClick={() => setView('session')}
+                disabled={!currentSession}
+                className={`px-3 py-1.5 rounded-lg font-medium text-sm transition ${
+                  view === 'session' && currentSession
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50'
+                }`}
+              >
+                Ver
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Content Area */}
-        {loadingInitial ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-12 h-12 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-slate-600 font-medium">Loading sessions...</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {view === 'recorder' ? (
-              <RecorderComponent
-                onCreateSession={createSession}
-                onSessionSaved={handleSessionSaved}
-              />
-            ) : currentSession ? (
-              <SessionDetail
-                session={currentSession}
-                onUpdate={handleUpdateSession}
-                onBack={() => setView('recorder')}
-              />
-            ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="mb-4 font-medium text-slate-600">
-                    Aun no seleccionaste una sesion
-                  </p>
-                  <button
-                    onClick={handleCreateNew}
-                    className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white transition hover:bg-blue-700"
-                  >
-                    Crear nueva grabacion
-                  </button>
-                </div>
+        <div className="flex-1 overflow-hidden">
+          {loadingInitial ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-slate-600 font-medium">Cargando sesiones...</p>
               </div>
-            )}
-          </>
-        )}
+            </div>
+          ) : (
+            <>
+              {view === 'recorder' ? (
+                <RecorderComponent
+                  onCreateSession={createSession}
+                  onSessionSaved={handleSessionSaved}
+                />
+              ) : currentSession ? (
+                <SessionDetail
+                  session={currentSession}
+                  onUpdate={handleUpdateSession}
+                  onBack={() => setView('recorder')}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-6">
+                    <div>
+                      <div className="text-6xl mb-4">🎯</div>
+                      <p className="text-lg font-medium text-slate-600 mb-2">
+                        Sin sesiones seleccionadas
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        Crea una nueva grabación o selecciona una existente del historial
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCreateNew}
+                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 px-8 py-3 font-semibold text-white shadow-lg hover:shadow-xl hover:scale-105 transition transform"
+                    >
+                      ✨ Crear nueva grabación
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Error Notification */}
         {error && (
-          <div className="absolute bottom-4 right-4 max-w-sm p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
+          <div className="absolute bottom-4 right-4 max-w-sm p-4 bg-red-50 border border-red-200 rounded-xl shadow-lg">
+            <p className="text-red-800 text-sm font-medium">⚠️ {error}</p>
           </div>
         )}
       </div>
       <ToastContainer />
-    </div>
+    </main>
   );
 }
