@@ -1,5 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+function normalizeFilenameByMimeType(mimeType: string): string {
+  if (mimeType.includes('mpeg') || mimeType.includes('mp3')) {
+    return 'audio.mp3';
+  }
+  if (mimeType.includes('wav')) {
+    return 'audio.wav';
+  }
+  if (mimeType.includes('ogg')) {
+    return 'audio.ogg';
+  }
+  if (mimeType.includes('m4a') || mimeType.includes('mp4')) {
+    return 'audio.m4a';
+  }
+  return 'audio.webm';
+}
+
+function isAcceptedAudioMimeType(mimeType: string): boolean {
+  if (!mimeType) {
+    return true;
+  }
+
+  return mimeType.startsWith('audio/') || mimeType === 'video/webm';
+}
+
 /**
  * POST /api/transcribe
  * Transcribe audio using external Whisper-compatible API
@@ -7,13 +31,21 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const audio = formData.get('audio') as Blob;
+    const audio = formData.get('audio') as Blob | File | null;
     const language = (formData.get('language') as string) || 'es';
     const mode = (formData.get('mode') as string) || 'default';
 
     if (!audio) {
       return NextResponse.json(
         { error: 'No audio file provided' },
+        { status: 400 }
+      );
+    }
+
+    const incomingMimeType = audio.type || 'audio/webm';
+    if (!isAcceptedAudioMimeType(incomingMimeType)) {
+      return NextResponse.json(
+        { error: `Unsupported media type: ${incomingMimeType}` },
         { status: 400 }
       );
     }
@@ -43,7 +75,11 @@ export async function POST(request: NextRequest) {
     }
 
     const formDataGroq = new FormData();
-    formDataGroq.append('file', new Blob([buffer], { type: 'audio/webm' }), 'audio.webm');
+    formDataGroq.append(
+      'file',
+      new Blob([buffer], { type: incomingMimeType }),
+      normalizeFilenameByMimeType(incomingMimeType)
+    );
     formDataGroq.append('model', 'whisper-large-v3');
     formDataGroq.append('language', language === 'es' ? 'es' : 'en');
 
@@ -60,7 +96,6 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Groq API error:', error);
 
       // In realtime mode we degrade gracefully to keep UI responsive
       // and avoid noisy 4xx errors in browser network panel.
@@ -71,6 +106,8 @@ export async function POST(request: NextRequest) {
           duration: audio.size,
         });
       }
+
+      console.error('Groq API error:', error);
 
       return NextResponse.json(
         { error: 'Transcription failed', details: error },

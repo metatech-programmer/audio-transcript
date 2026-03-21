@@ -14,7 +14,16 @@ export async function transcribeAudio(
   }
 
   const formData = new FormData();
-  formData.append('audio', audioBlob, 'chunk.webm');
+  const audioType = audioBlob.type || 'audio/webm';
+  const filename = audioType.includes('wav')
+    ? 'chunk.wav'
+    : audioType.includes('mpeg') || audioType.includes('mp3')
+    ? 'chunk.mp3'
+    : audioType.includes('ogg')
+    ? 'chunk.ogg'
+    : 'chunk.webm';
+
+  formData.append('audio', new Blob([audioBlob], { type: audioType }), filename);
   formData.append('language', language);
   if (options?.softFail) {
     formData.append('mode', 'realtime');

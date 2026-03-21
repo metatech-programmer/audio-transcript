@@ -70,42 +70,33 @@ export default function SessionHistory({
   };
 
   return (
-    <div className="w-full max-w-sm bg-white border-r border-slate-200 flex flex-col h-screen">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-200">
-        <h1 className="text-2xl font-bold text-slate-900 mb-4">
-          Lecture Recordings
-        </h1>
-
+    <div className="w-full flex-col h-full bg-transparent">
+      {/* Search & Actions Header */}
+      <div className="px-5 py-4 border-b border-[#EAEAEB] bg-white">
         <button
           onClick={onCreateNew}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition"
+          className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 text-[13px] font-medium transition-colors shadow-sm"
         >
-          + New Recording
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New Recording
         </button>
-      </div>
 
-      {/* Search */}
-      <div className="p-4 border-b border-slate-200">
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-3 text-slate-400" />
+        <div className="relative group">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-600 transition-colors" />
           <input
             type="text"
             placeholder="Search sessions..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-2 bg-[#F9F9FA] border border-transparent hover:border-[#EAEAEB] rounded-md text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-slate-200 focus:border-slate-300 transition-all"
           />
         </div>
       </div>
 
       {/* Tags Filter */}
       {allTags.length > 0 && (
-        <div className="p-4 border-b border-slate-200">
-          <p className="text-xs font-semibold text-slate-600 mb-2 uppercase">
-            Filter by Tag
-          </p>
-          <div className="flex flex-wrap gap-2">
+        <div className="px-5 py-3 border-b border-[#EAEAEB] bg-[#F9F9FA]/50">
+          <div className="flex flex-wrap gap-1.5">
             {allTags.map((tag) => (
               <button
                 key={tag}
@@ -116,10 +107,10 @@ export default function SessionHistory({
                       : [...prev, tag]
                   )
                 }
-                className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
                   selectedTags.includes(tag)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                    : 'bg-white text-slate-600 border-[#EAEAEB] hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 {tag}
@@ -130,59 +121,66 @@ export default function SessionHistory({
       )}
 
       {/* Sessions List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto pb-6">
         {filteredSessions.length === 0 ? (
-          <div className="p-4 text-center text-slate-500">
-            <p className="text-sm">
+          <div className="px-5 py-8 text-center text-slate-500">
+            <p className="text-[13px]">
               {sessions.length === 0
                 ? 'No recordings yet'
                 : 'No matching sessions'}
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="px-2 py-2 space-y-0.5">
             {filteredSessions.map((session) => (
               <div
                 key={session.id}
                 onClick={() => onSelectSession(session)}
-                className={`p-4 cursor-pointer transition ${
+                className={`group relative flex flex-col p-3 rounded-lg cursor-pointer transition-colors ${
                   currentSession?.id === session.id
-                    ? 'bg-blue-50 border-l-4 border-l-blue-600'
-                    : 'hover:bg-slate-50'
+                    ? 'bg-white shadow-sm ring-1 ring-[#EAEAEB]'
+                    : 'border border-transparent hover:bg-[#EAEAEB]/40'
                 }`}
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-medium text-slate-900 flex-1 truncate">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <h3 className={`text-[14.5px] font-semibold leading-tight line-clamp-1 flex-1 tracking-tight ${
+                    currentSession?.id === session.id ? 'text-slate-900' : 'text-slate-700 group-hover:text-slate-900'
+                  }`}>
                     {session.title}
                   </h3>
                   <button
                     onClick={(e) => handleDeleteRequest(session.id, e)}
                     disabled={isDeleting === session.id}
-                    className="p-1 text-slate-400 hover:text-red-600 transition disabled:opacity-50"
+                    className={`opacity-0 group-hover:opacity-100 p-1 -mr-1 -mt-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-50 ${currentSession?.id === session.id ? 'opacity-100' : ''}`}
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
 
-                <p className="text-xs text-slate-500 mb-2">
-                  {formatDate(session.date)}
-                </p>
+                <div className="flex items-center gap-2 mb-2 text-[11.5px] text-slate-500 font-medium">
+                  <span>{formatDate(session.date)}</span>
+                  {session.duration && (
+                    <>
+                      <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                      <span>{Math.floor(session.duration / 60)}:{(session.duration % 60).toString().padStart(2, '0')}</span>
+                    </>
+                  )}
+                </div>
 
                 {session.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
                     {session.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-slate-200 text-slate-700"
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F1F1F2] text-slate-600 border border-transparent shadow-sm"
                       >
-                        <Tag size={10} />
                         {tag}
                       </span>
                     ))}
                   </div>
                 )}
 
-                <p className="text-xs text-slate-600 line-clamp-2">
+                <p className="text-[12px] text-slate-500 line-clamp-2 leading-relaxed">
                   {session.transcript.substring(0, 80)}...
                 </p>
               </div>

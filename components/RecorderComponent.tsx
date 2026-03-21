@@ -1,11 +1,13 @@
-'use client';
+"use client";
 
 import React, { useState } from 'react';
-import { Mic, Square } from 'lucide-react';
+import { Mic, Globe, FileText } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAudioRecorder } from '@/hooks/useRecorder';
 import { useSummarization } from '@/hooks/useTranscription';
 import { formatDuration, transcribeAudio } from '@/lib/utils';
+import TestPhase from './TestPhase';
+import SoundWaves from './SoundWaves';
 import type { Session, Summary } from '@/lib/types';
 
 interface RecorderComponentProps {
@@ -17,24 +19,20 @@ export default function RecorderComponent({
   onCreateSession,
   onSessionSaved,
 }: RecorderComponentProps) {
-  // Real-time transcription enabled in useAudioRecorder hook
+  const [showTestPhase, setShowTestPhase] = useState(true);
+  const [testPassed, setTestPassed] = useState(false);
+
   const {
     startRecording,
     stopRecording,
     isRecording,
     duration,
     error,
-    isLiveTranscribing,
-    liveStatus,
-    lastChunkText,
-    processedChunks,
     audioLevel,
-    liveEngine,
-    liveEngineMode,
     selectedDialect,
-    setLiveEngineMode,
     setSelectedDialect,
   } = useAudioRecorder();
+
   const { summarize, loading: summarizing } = useSummarization();
 
   const {
@@ -47,28 +45,11 @@ export default function RecorderComponent({
   } = useAppStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const wordCount = recorder.transcript.trim()
-    ? recorder.transcript.trim().split(/\s+/).length
-    : 0;
-
-  const liveStatusLabel = {
-    idle: 'Idle',
-    listening: 'Listening...',
-    transcribing: 'Transcribing now...',
-    updated: 'Updated',
-  }[liveStatus];
-
-  const eqOffsets = [-22, -8, 10, -8, -22];
-  const eqLevels = eqOffsets.map((offset) => {
-    if (!isRecording) return 8;
-    const level = audioLevel + offset;
-    return Math.max(8, Math.min(100, level));
-  });
 
   const handleStart = async () => {
     resetRecorder();
     await startRecording({
-      engineMode: liveEngineMode,
+      engineMode: 'auto',
       dialect: selectedDialect,
     });
   };
@@ -82,45 +63,34 @@ export default function RecorderComponent({
         throw new Error('No audio recorded');
       }
 
-      let latestTranscript = useAppStore
-        .getState()
-        .recorder.transcript.trim();
+      // Transcribe full audio after recording
+      const transcript = await transcribeAudio(audioBlob, recorder.language);
 
-      // Friendly fallback: if live chunks produced no text, transcribe full recording once.
-      if (!latestTranscript) {
-        const finalTranscript = await transcribeAudio(audioBlob, recorder.language);
-
-        if (finalTranscript.trim()) {
-          latestTranscript = finalTranscript.trim();
-          setTranscript(latestTranscript);
-        }
-      }
-
-      if (!latestTranscript) {
+      if (!transcript.trim()) {
         addToast(
           'info',
-          'No detectamos voz con claridad. Intenta hablar un poco mas cerca del microfono y vuelve a grabar.'
+          'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.'
         );
         return;
       }
 
+      setTranscript(transcript.trim());
+
       let summary: Summary | null = null;
 
-      // Transcript already being updated in real-time via chunks
-      // Just auto-summarize if transcript is long enough
-      if (latestTranscript.length > 100) {
+      // Auto-summarize if transcript is long enough
+      if (transcript.length > 100) {
         setStore_Summarizing(true);
         try {
-          summary = await summarize(latestTranscript, recorder.language);
+          summary = await summarize(transcript.trim(), recorder.language);
         } catch (err) {
           console.error('Auto-summarize failed:', err);
-          // Continue without summary
         }
       }
 
       if (onCreateSession) {
         const now = new Date().toISOString();
-        const titleFromTranscript = latestTranscript
+        const titleFromTranscript = transcript
           .split(/\s+/)
           .slice(0, 8)
           .join(' ');
@@ -132,7 +102,7 @@ export default function RecorderComponent({
           date: now,
           duration,
           language: recorder.language,
-          transcript: latestTranscript,
+          transcript: transcript.trim(),
           summary,
           tags: [],
           createdAt: now,
@@ -140,246 +110,164 @@ export default function RecorderComponent({
         });
 
         onSessionSaved?.(savedSession);
-        addToast('success', 'Sesion guardada correctamente.');
+        addToast('success', 'Sesión guardada correctamente.');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Processing failed';
-      addToast('error', `No se pudo procesar la grabacion: ${message}`);
+      addToast('error', `No se pudo procesar la grabación: ${message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  // Show test phase if not passed
+  if (showTestPhase && !testPassed) {
+    return (
+      <TestPhase
+        onTestPassed={() => {
+          setTestPassed(true);
+          setShowTestPhase(false);
+        }}
+        onCancel={() => {
+          // Go back to home
+          window.history.back();
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 p-4 md:p-8 flex items-center justify-center">
-        <div className="w-full max-w-2xl">
+    <div className="flex-1 overflow-y-auto bg-transparent">
+      <div className="min-h-full w-full p-6 md:p-12 flex flex-col items-center justify-center">
+        <div className="w-full max-w-xl">
           {/* Main Card */}
-          <div className="rounded-3xl border border-slate-200/60 bg-white/80 backdrop-blur-sm p-6 md:p-10 shadow-xl hover:shadow-2xl transition">
+          <div className="rounded-xl border border-[#EAEAEB] bg-white p-8 md:p-10 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
             {/* Header */}
-            <div className="mb-8">
-              <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-100 to-green-100 px-4 py-2 text-sm font-semibold text-emerald-700 mb-4">
-                🎙️ Grabadora en Vivo
+            <div className="mb-10 text-center">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-50 border border-[#EAEAEB] mb-5 shadow-sm">
+                <Mic size={20} className="text-slate-700" />
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-2">
-                Captura tu clase
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">
+                Record Session
               </h2>
-              <p className="text-slate-600">
-                Transcripción automática + Resumen inteligente en tu idioma
+              <p className="text-[14px] text-slate-500">
+                Capture high-quality audio and automatically generate structured notes.
               </p>
             </div>
 
             {/* Settings Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
               {/* Language */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  🌐 Idioma
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Globe size={14} className="text-slate-400" /> Language
                 </label>
                 <select
                   value={recorder.language}
-                  onChange={(e) =>
-                    setLanguage(e.target.value as 'en' | 'es')
-                  }
+                  onChange={(e) => setLanguage(e.target.value as 'en' | 'es')}
                   disabled={isRecording}
-                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 bg-slate-50"
+                  className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
                 >
-                  <option value="es">🇪🇸 Español</option>
-                  <option value="en">🇺🇸 English</option>
-                </select>
-              </div>
-
-              {/* Engine */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  ⚡ Motor
-                </label>
-                <select
-                  value={liveEngineMode}
-                  onChange={(e) =>
-                    setLiveEngineMode(e.target.value as 'auto' | 'browser' | 'api')
-                  }
-                  disabled={isRecording}
-                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 bg-slate-50"
-                >
-                  <option value="auto">Auto (Recomendado)</option>
-                  <option value="browser">Navegador (Gratis)</option>
-                  <option value="api">Whisper API</option>
+                  <option value="es">Spanish</option>
+                  <option value="en">English</option>
                 </select>
               </div>
 
               {/* Dialect */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  🗣️ Dialecto
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 12A10 10 0 0 1 12 2z"></path></svg> 
+                  Dialect
                 </label>
                 <select
                   value={selectedDialect}
                   onChange={(e) => setSelectedDialect(e.target.value)}
                   disabled={isRecording}
-                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 bg-slate-50"
+                  className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
                 >
-                  <option value="es-ES">Español (España)</option>
-                  <option value="es-MX">Español (México)</option>
-                  <option value="en-US">English (US)</option>
-                  <option value="en-GB">English (UK)</option>
+                  <option value="es-ES">España</option>
+                  <option value="es-MX">México</option>
+                  <option value="en-US">US English</option>
+                  <option value="en-GB">UK English</option>
                 </select>
               </div>
             </div>
 
             {/* Timer Display */}
-            <div className="mb-8 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50 py-8 px-6 text-center">
-              <div className="text-5xl md:text-6xl font-mono font-bold text-indigo-600 mb-2">
+            <div className="mb-8 p-8 flex flex-col items-center justify-center relative">
+              <div className="text-6xl font-semibold tracking-tighter text-slate-900 mb-3" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {formatDuration(duration)}
               </div>
               {isRecording && (
-                <div className="flex items-center justify-center gap-2 text-emerald-700 font-medium">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Grabando en vivo...
+                <div className="flex items-center justify-center gap-2 text-red-500 font-medium text-[13px]">
+                  <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  Recording
                 </div>
               )}
             </div>
 
-            {/* Real-time Feedback - Collapsible */}
-            <div className="mb-8 rounded-2xl border border-slate-200/60 bg-slate-50/50 p-5 overflow-hidden">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h3 className="font-semibold text-slate-900">📊 Retroalimentación</h3>
-                <span
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                    isRecording
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-slate-200 text-slate-600'
-                  }`}
+            {/* Sound Waves Animation */}
+            {isRecording && (
+              <div className="mb-8 rounded-xl bg-[#F9F9FA] border border-[#EAEAEB] p-6 h-28 flex items-center justify-center">
+                <SoundWaves isActive={isRecording} audioLevel={audioLevel} />
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-4 mb-8">
+              {!isRecording ? (
+                <button
+                  onClick={handleStart}
+                  disabled={isProcessing}
+                  className="flex flex-1 items-center justify-center gap-2 px-6 py-2.5 rounded-md font-medium text-[14px] text-white bg-slate-900 hover:bg-slate-800 transition-colors disabled:opacity-50 shadow-sm"
                 >
-                  {isRecording ? 'Activo' : 'Inactivo'}
-                </span>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-200/50">
-                  <span className="text-xs text-slate-500 font-medium">Nivel</span>
-                  <span className="text-lg font-bold text-indigo-600">{audioLevel}%</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-200/50">
-                  <span className="text-xs text-slate-500 font-medium">Chunks</span>
-                  <span className="text-lg font-bold text-indigo-600">{processedChunks}</span>
-                </div>
-                <div className="flex flex-col items-center p-2 bg-white rounded-lg border border-slate-200/50">
-                  <span className="text-xs text-slate-500 font-medium">Palabras</span>
-                  <span className="text-lg font-bold text-indigo-600">{wordCount}</span>
-                </div>
-              </div>
-
-              {/* Level Bar */}
-              <div className="mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-150 ${
-                        audioLevel > 65
-                          ? 'bg-emerald-500'
-                          : audioLevel > 30
-                          ? 'bg-amber-500'
-                          : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${isRecording ? audioLevel : 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Equalizer */}
-              <div className="mb-3 flex items-end justify-center gap-1.5 h-8 bg-white rounded-lg border border-slate-200/50 p-2">
-                {eqLevels.map((level, index) => (
-                  <div
-                    key={`eq-${index}`}
-                    className={`flex-1 rounded-sm transition-all duration-150 ${
-                      isRecording ? 'bg-gradient-to-t from-indigo-500 to-blue-500' : 'bg-slate-300'
-                    }`}
-                    style={{
-                      height: `${level}%`,
-                      opacity: isRecording ? 1 : 0.5,
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Status Text */}
-              {isRecording && !recorder.transcript && (
-                <p className="text-xs text-indigo-700 font-medium">
-                  🎤 Habla nearamente. El texto aparecerá pronto...
-                </p>
-              )}
-
-              {lastChunkText && (
-                <div className="mt-3 p-2.5 rounded-lg bg-white border border-indigo-200/50">
-                  <p className="text-xs text-slate-500 font-medium mb-1">Última frase detectada:</p>
-                  <p className="text-sm text-slate-800 leading-relaxed">{lastChunkText}</p>
-                </div>
+                  <Mic size={16} />
+                  Start Recording
+                </button>
+              ) : (
+                <button
+                  onClick={handleStop}
+                  disabled={isProcessing}
+                  className="flex flex-1 items-center justify-center gap-2 px-6 py-2.5 rounded-md font-medium text-[14px] text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 shadow-sm"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                  Stop Recording
+                </button>
               )}
             </div>
 
-            {/* Transcript Display - Expandable */}
-            {recorder.transcript && (
-              <div className="mb-8 rounded-2xl border border-slate-200/60 bg-blue-50/50 p-5">
-                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  ✍️ Transcripción en Vivo
-                  {isRecording && (
-                    <span className="text-xs font-normal text-blue-600 animate-pulse">
-                      • actualizando...
-                    </span>
-                  )}
-                </h3>
-                <div className="p-4 bg-white rounded-lg max-h-40 overflow-y-auto border border-blue-200">
-                  <p className="text-slate-800 text-sm leading-relaxed">{recorder.transcript}</p>
-                </div>
-                <p className="text-xs text-slate-600 mt-2">
-                  📖 {Math.ceil(recorder.transcript.split(/\s+/).length / 150)} min aprox.
-                </p>
-              </div>
-            )}
-
-            {/* Error Display */}
-            {error && (
-              <div className="mb-8 p-4 bg-red-50 border-l-4 border-red-400 rounded-lg">
-                <p className="text-red-800 text-sm font-medium">⚠️ {error}</p>
-              </div>
-            )}
-
-            {/* Control Buttons */}
-            <div className="flex gap-4 mb-4">
-              <button
-                onClick={handleStart}
-                disabled={isRecording || isProcessing || summarizing}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 px-6 py-4 font-bold text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100"
-              >
-                <Mic size={20} />
-                Empezar Grabación
-              </button>
-
-              <button
-                onClick={handleStop}
-                disabled={!isRecording || isProcessing || summarizing}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-6 py-4 font-bold text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100"
-              >
-                <Square size={20} />
-                Detener
-              </button>
-            </div>
-
-            {/* Processing Status */}
-            {(isProcessing || summarizing) && (
-              <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-indigo-900 text-sm font-medium">
-                    {isProcessing && '⏳ Procesando audio...'}
-                    {summarizing && '🤖 Generando resumen...'}
+            {/* Status Messages */}
+            {isProcessing && (
+              <div className="mb-6 rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-4 text-center shadow-sm">
+                <div className="inline-flex items-center gap-2.5">
+                  <div className="h-3.5 w-3.5 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
+                  <span className="text-[13px] text-slate-700 font-medium">
+                    {duration > 5
+                      ? 'Generating insights & summary...'
+                      : 'Processing audio...'}
                   </span>
                 </div>
               </div>
             )}
+
+            {/* Transcript Section */}
+            {recorder.transcript && (
+              <div className="mb-6">
+                <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
+                  <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                    <FileText size={14} className="text-slate-500" /> Transcript Preview
+                  </h3>
+                  <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
+                    {recorder.transcript}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div className="text-center text-[12px] text-slate-500 mt-2">
+                 Speak clearly for best accuracy. Summary generation is automatic.
+            </div>
           </div>
         </div>
       </div>

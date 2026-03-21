@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
 import React, { useEffect, useState } from 'react';
+import { BookOpen, Mic, Eye, Target, PlusCircle, AlertCircle } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useSessions } from '@/hooks/useRecorder';
 import SessionHistory from '@/components/SessionHistory';
@@ -12,6 +13,7 @@ import type { Session } from '@/lib/types';
 export default function Home() {
   const [view, setView] = useState<'recorder' | 'session'>('recorder');
   const [loadingInitial, setLoadingInitial] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   const {
     sessions,
@@ -26,6 +28,7 @@ export default function Home() {
   } = useSessions();
 
   useEffect(() => {
+    setMounted(true);
     const initializeSessions = async () => {
       try {
         await fetchSessions();
@@ -63,16 +66,16 @@ export default function Home() {
   };
 
   return (
-    <main className="flex h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+    <main className="flex min-h-screen w-screen bg-[#FBFBFC]">
       {/* Sidebar */}
-      <div className="hidden lg:flex lg:w-80 lg:flex-col bg-white border-r border-slate-200/60 shadow-sm overflow-hidden">
-        <div className="sticky top-0 z-20 px-4 py-4 bg-gradient-to-r from-white to-blue-50 border-b border-slate-200/60">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-            📚 Study Buddy
-          </h1>
-          <p className="text-xs text-slate-600 mt-1">Tu asistente de notas</p>
+      <div className="hidden lg:flex lg:w-72 lg:flex-col bg-[#F5F5F6] border-r border-[#EAEAEB] shadow-sm shrink-0">
+        <div className="sticky top-0 z-20 px-5 py-4 border-b border-[#EAEAEB] flex items-center justify-between">
+          <div className="flex gap-2 items-center">
+            <BookOpen size={18} className="text-slate-800" />
+            <span className="text-[15px] font-semibold text-slate-800 tracking-tight">StudyBuddy</span>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto w-full">
           <SessionHistory
             sessions={sessions}
             currentSession={currentSession}
@@ -84,41 +87,44 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile/Tablet Header */}
-        <div className="lg:hidden sticky top-0 z-20 border-b border-white/70 bg-white/80 backdrop-blur-md shadow-sm">
+        <div className="lg:hidden sticky top-0 z-20 border-b border-[#EAEAEB] bg-white/80 backdrop-blur-md">
           <div className="flex items-center justify-between px-4 py-3">
-            <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-              📚 Study Buddy
+            <h1 className="text-[15px] font-semibold tracking-tight text-slate-800 flex items-center gap-2">
+              <BookOpen size={18} className="text-slate-800" />
+              StudyBuddy
             </h1>
             <div className="flex gap-2">
               <button
                 onClick={handleCreateNew}
-                className={`px-3 py-1.5 rounded-lg font-medium text-sm transition ${
+                className={`px-3 py-1.5 rounded-md font-medium text-[13px] transition ${
                   view === 'recorder'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                Grabar
+                <Mic size={14} className="inline mr-1" />
+                Record
               </button>
               <button
                 onClick={() => setView('session')}
-                disabled={!currentSession}
-                className={`px-3 py-1.5 rounded-lg font-medium text-sm transition ${
+                disabled={!mounted ? undefined : !currentSession}
+                className={`px-3 py-1.5 rounded-md font-medium text-[13px] transition ${
                   view === 'session' && currentSession
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50'
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50'
                 }`}
               >
-                Ver
+                <Eye size={14} className="inline mr-1" />
+                View
               </button>
             </div>
           </div>
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto bg-white rounded-tl-xl border-l border-t border-[#EAEAEB] mt-0 lg:mt-2 lg:ml-0 lg:mr-2 lg:mb-2 shadow-sm">
           {loadingInitial ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -140,22 +146,25 @@ export default function Home() {
                   onBack={() => setView('recorder')}
                 />
               ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center space-y-6">
-                    <div>
-                      <div className="text-6xl mb-4">🎯</div>
-                      <p className="text-lg font-medium text-slate-600 mb-2">
-                        Sin sesiones seleccionadas
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        Crea una nueva grabación o selecciona una existente del historial
-                      </p>
+                <div className="flex-1 flex flex-col items-center justify-center min-h-[500px]">
+                  <div className="text-center max-w-sm px-6">
+                    <div className="mb-6 flex justify-center">
+                      <div className="w-16 h-16 rounded-2xl bg-[#F5F5F6] flex items-center justify-center border border-[#EAEAEB] shadow-sm">
+                        <Target size={24} className="text-slate-400" />
+                      </div>
                     </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                      No session selected
+                    </h3>
+                    <p className="text-[14px] text-slate-500 mb-8">
+                      Select an existing recording from the sidebar or start a new one to begin capturing insights.
+                    </p>
                     <button
                       onClick={handleCreateNew}
-                      className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 px-8 py-3 font-semibold text-white shadow-lg hover:shadow-xl hover:scale-105 transition transform"
+                      className="inline-flex items-center gap-2 rounded-md bg-slate-900 text-white px-5 py-2.5 text-[14px] font-medium hover:bg-slate-800 transition-colors shadow-sm"
                     >
-                      ✨ Crear nueva grabación
+                      <PlusCircle size={16} />
+                      New Recording
                     </button>
                   </div>
                 </div>
@@ -167,7 +176,7 @@ export default function Home() {
         {/* Error Notification */}
         {error && (
           <div className="absolute bottom-4 right-4 max-w-sm p-4 bg-red-50 border border-red-200 rounded-xl shadow-lg">
-            <p className="text-red-800 text-sm font-medium">⚠️ {error}</p>
+            <p className="text-red-800 text-sm font-medium flex items-center gap-2"><AlertCircle size={14} />{error}</p>
           </div>
         )}
       </div>

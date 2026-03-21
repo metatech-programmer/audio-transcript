@@ -157,3 +157,27 @@ textarea:focus-visible {
     transform: translateY(0);
   }
 }
+
+/* Dark mode basics */
+body.dark {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(15,23,42,0.4) 0%, transparent 35%),
+    radial-gradient(circle at 84% 0%, rgba(17,24,39,0.35) 0%, transparent 30%),
+    radial-gradient(circle at 90% 92%, rgba(2,6,23,0.35) 0%, transparent 28%),
+    #0b1220;
+  color: #e6eef8;
+}
+
+body.dark::before,
+body.dark::after {
+  opacity: 0.6;
+}
+
+/* Dark scrollbar */
+body.dark ::-webkit-scrollbar-track {
+  background: #071024;
+}
+
+body.dark ::-webkit-scrollbar-thumb {
+  background: #1f2937;
+}

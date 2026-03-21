@@ -8,6 +8,7 @@ import { transcribeAudio } from '@/lib/utils';
 export function useAudioRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const processedChunksRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -189,16 +190,35 @@ export function useAudioRecorder() {
           setIsLiveTranscribing(true);
           setLiveStatus('transcribing');
 
-          // Real-time transcription of each 1-second chunk
+          // Transcribe only the new/unprocessed chunks to avoid overlapping text.
           try {
-            const chunkText = await transcribeAudio(event.data, recorder.language, {
+            const startIndex = processedChunksRef.current;
+            const newChunks = audioChunksRef.current.slice(startIndex);
+            if (newChunks.length === 0) {
+              isChunkTranscribingRef.current = false;
+              setIsLiveTranscribing(false);
+              setLiveStatus('listening');
+              return;
+            }
+
+            const payload = new Blob(newChunks, {
+              type: 'audio/webm',
+            });
+
+            const chunkText = await transcribeAudio(payload, recorder.language, {
               softFail: true,
             });
+
             if (chunkText && chunkText.trim()) {
-              transcriptRef.current += (transcriptRef.current ? ' ' : '') + chunkText;
+              // Append new chunk text to the running transcript.
+              transcriptRef.current = `${transcriptRef.current} ${chunkText.trim()}`.trim();
               setTranscript(transcriptRef.current);
-              setLastChunkText(chunkText.trim());
-              setProcessedChunks((count) => count + 1);
+              setLastChunkText(
+                transcriptRef.current.split(/\s+/).slice(-8).join(' ')
+              );
+              // Mark all of the new chunks as processed.
+              processedChunksRef.current = audioChunksRef.current.length;
+              setProcessedChunks(processedChunksRef.current);
               setLiveStatus('updated');
             } else {
               setLiveStatus('listening');
@@ -249,20 +269,22 @@ export function useAudioRecorder() {
         const audioBlob = new Blob(audioChunksRef.current, {
           type: 'audio/webm',
         });
-        
-        // Final pass: do full transcription if chunks were incomplete
-        if (transcriptRef.current.length < 50) {
-          try {
-            const finalText = await transcribeAudio(audioBlob, recorder.language, {
-              softFail: true,
-            });
-            if (finalText && finalText.length > transcriptRef.current.length) {
-              transcriptRef.current = finalText;
-              setTranscript(finalText);
-            }
-          } catch (err) {
-            console.error('Final transcription error:', err);
+
+        // Always attempt a final full transcription of the entire recording so
+        // the saved transcript covers from second 0 until the end.
+        try {
+          const finalText = await transcribeAudio(audioBlob, recorder.language, {
+            softFail: true,
+          });
+          if (finalText && finalText.trim()) {
+            transcriptRef.current = finalText.trim();
+            setTranscript(transcriptRef.current);
+            // Mark all chunks as processed
+            processedChunksRef.current = audioChunksRef.current.length;
+            setProcessedChunks(processedChunksRef.current);
           }
+        } catch (err) {
+          console.error('Final transcription error:', err);
         }
         
         resolve(audioBlob);
