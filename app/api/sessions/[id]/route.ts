@@ -7,10 +7,11 @@ import { dbGetSession, dbUpdateSession, dbDeleteSession } from '@/lib/db';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await dbGetSession(params.id);
+    const { id } = await params;
+    const session = await dbGetSession(id);
 
     if (!session) {
       return NextResponse.json(
@@ -32,12 +33,13 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const data = await request.json();
 
-    const existing = await dbGetSession(params.id);
+    const existing = await dbGetSession(id);
     if (!existing) {
       return NextResponse.json(
         { error: 'Session not found' },
@@ -70,10 +72,11 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const existing = await dbGetSession(params.id);
+    const { id } = await params;
+    const existing = await dbGetSession(id);
     if (!existing) {
       return NextResponse.json(
         { error: 'Session not found' },
@@ -81,7 +84,7 @@ export async function DELETE(
       );
     }
 
-    await dbDeleteSession(params.id);
+    await dbDeleteSession(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Delete session error:', error);
