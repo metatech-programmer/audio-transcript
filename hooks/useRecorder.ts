@@ -119,12 +119,53 @@ export function useAudioRecorder() {
           const chunksToSend = audioChunksRef.current.slice(start, end);
           const blob = new Blob(chunksToSend, { type: 'audio/webm' });
 
+          // Client-side validation: ensure we have a usable blob and sessionId
+          if (!sessionIdRef.current) {
+            console.warn('rotateFunc: missing sessionId — generating temporary id');
+            sessionIdRef.current = String(Date.now());
+          }
+
+          if (!blob || (blob.size && blob.size === 0)) {
+            console.warn('rotateFunc: empty blob detected for chunk', start, end);
+            // Save an empty/failed marker to IndexedDB so retry UI shows it
+            try {
+              await saveFailedChunk({
+                id: `${sessionIdRef.current}:${start}:${Date.now()}:empty`,
+                sessionId: sessionIdRef.current || '',
+                chunkIndex: start,
+                blob,
+                final,
+                language: recorder.language,
+                createdAt: new Date().toISOString(),
+              } as any);
+              const all = await getAllFailedChunks();
+              setQueuedCount(all.length || 0);
+            } catch (e) {
+              // fall back to localStorage marker
+              try {
+                const key = `session:${sessionIdRef.current}`;
+                const raw = localStorage.getItem(key);
+                const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
+                parsed.transcripts = parsed.transcripts || [];
+                parsed.transcripts.push({ index: start, text: '', createdAt: new Date().toISOString(), status: 'failed-empty' });
+                localStorage.setItem(key, JSON.stringify(parsed));
+              } catch {}
+            }
+            return;
+          }
+
           const form = new FormData();
           form.append('audio', blob, `chunk_${start}_${end}.webm`);
           form.append('sessionId', sessionIdRef.current || '');
           form.append('chunkIndex', String(start));
           form.append('final', final ? '1' : '0');
           form.append('language', recorder.language);
+
+          // Final client-side checks before sending
+          if (!sessionIdRef.current) {
+            console.warn('rotateFunc: sessionId missing before fetch — aborting send');
+            return;
+          }
 
           const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
           if (resp.ok) {
@@ -363,6 +404,15 @@ export function useAudioRecorder() {
 
       const mediaRecorder = mediaRecorderRef.current;
       mediaRecorder.onstop = async () => {
+        // If no chunks collected yet, ask MediaRecorder to emit buffered data and wait briefly.
+        if (audioChunksRef.current.length === 0 && mediaRecorder && mediaRecorder.state !== 'inactive') {
+          try {
+            mediaRecorder.requestData();
+            // Wait a short time for ondataavailable to run and push chunks
+            await new Promise((r) => setTimeout(r, 800));
+          } catch {}
+        }
+
         const audioBlob = new Blob(audioChunksRef.current, {
           type: 'audio/webm',
         });
@@ -472,6 +522,30 @@ export function useAudioRecorder() {
     };
   }, []);
 
+  // If user hides the tab or navigates away, try to flush MediaRecorder data so we don't lose chunks.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      try {
+        if (document.hidden) {
+          // Ask the recorder to emit any buffered data immediately
+          mediaRecorderRef.current?.requestData();
+          // Also attempt a rotation flush (non-final) so server gets recent audio
+          void rotateFuncRef.current?.(false);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    window.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onVisibilityChange as any);
+
+    return () => {
+      window.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onVisibilityChange as any);
+    };
+  }, []);
+
   // Retry worker: periodically attempt to resend failed chunks stored in IndexedDB
   let _running = false;
   const processQueue = async () => {
@@ -484,6 +558,19 @@ export function useAudioRecorder() {
       setQueuedCount(items.length || 0);
       for (const item of items) {
         try {
+          // Validate queued item before attempting to resend
+          if (!item || !item.blob) {
+            console.warn('processQueue: invalid queued item, deleting', item?.id);
+            await deleteFailedChunk(item.id);
+            continue;
+          }
+
+          if (item.blob.size === 0) {
+            console.warn('processQueue: queued blob empty, deleting', item.id);
+            await deleteFailedChunk(item.id);
+            continue;
+          }
+
           const form = new FormData();
           form.append('audio', item.blob, `retry_${item.sessionId}_${item.chunkIndex}.webm`);
           form.append('sessionId', item.sessionId || '');
@@ -516,17 +603,20 @@ export function useAudioRecorder() {
   };
 
   useEffect(() => {
-    // Start immediately and then every 30s
-    void processQueue();
-    const interval = setInterval(() => void processQueue(), 30 * 1000);
-
-    // Also process when back online
-    const onOnline = () => void processQueue();
-    window.addEventListener('online', onOnline);
+    // Do not automatically resend queued audio to avoid unexpected transcription
+    // (and token usage). Only update the queued count here. Use `triggerRetry()`
+    // to manually send queued items when the user explicitly requests it.
+    (async () => {
+      try {
+        const items = await getAllFailedChunks();
+        setQueuedCount(items.length || 0);
+      } catch (e) {
+        // ignore
+      }
+    })();
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('online', onOnline);
+      // no-op
     };
   }, [recorder.language]);
 
@@ -644,7 +734,30 @@ export function useSessions() {
         body: JSON.stringify(updates),
       });
 
-      if (!response.ok) throw new Error('Failed to update session');
+      if (!response.ok) {
+        // If server reports not found (e.g., in-memory store lost), fallback to local update
+        if (response.status === 404) {
+          console.warn('Update API returned 404 — falling back to local update for session', sessionId);
+          const fallback = { ...(sessions.find(s => s.id === sessionId) || {}), ...updates, id: sessionId, updatedAt: new Date().toISOString() } as any;
+          updateSession(fallback);
+          setCurrentSession(fallback);
+          try {
+            if (typeof window !== 'undefined') {
+              const existing = window.localStorage.getItem('local_sessions');
+              const list = existing ? JSON.parse(existing) as any[] : [];
+              const idx = list.findIndex((s) => s.id === sessionId);
+              if (idx !== -1) { list[idx] = fallback; } else { list.unshift(fallback); }
+              window.localStorage.setItem('local_sessions', JSON.stringify(list));
+            }
+          } catch (e) {
+            console.warn('Failed to sync fallback update to local_sessions', e);
+          }
+          setError(null);
+          return fallback;
+        }
+
+        throw new Error('Failed to update session');
+      }
 
       const data = await response.json();
       updateSession(data.session);
@@ -681,9 +794,34 @@ export function useSessions() {
         method: 'DELETE',
       });
 
-      if (!response.ok) throw new Error('Failed to delete session');
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Server doesn't know this session (in-memory dev server). Fallback to local removal.
+          console.warn('Delete API returned 404 — performing local delete fallback for', sessionId);
+          setSessions(sessions.filter((s) => s.id !== sessionId));
+          if (currentSession?.id === sessionId) {
+            setCurrentSession(null);
+          }
+          try {
+            if (typeof window !== 'undefined') {
+              const existing = window.localStorage.getItem('local_sessions');
+              if (existing) {
+                const list = JSON.parse(existing) as any[];
+                const filtered = list.filter((s) => s.id !== sessionId);
+                window.localStorage.setItem('local_sessions', JSON.stringify(filtered));
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to remove session from local_sessions during fallback delete', e);
+          }
+          setError(null);
+          return;
+        }
 
-      // Remove from store
+        throw new Error('Failed to delete session');
+      }
+
+      // Remove from store on success
       setSessions(sessions.filter((s) => s.id !== sessionId));
       if (currentSession?.id === sessionId) {
         setCurrentSession(null);
