@@ -298,10 +298,16 @@ export default function RecorderComponent({
         }
       }
 
-      // Refresh queued items (in case host/hook didn't update count)
+      // Clear queued items for this session (they're now saved) and refresh UI
       try {
         const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
-        await hostController?.refreshQueue?.();
+        await hostController?.clearQueue?.(hostController?.sessionId);
+        setQueuedItems([]);
+      } catch {}
+
+      // Reset recorder UI/state so pill and counters return to initial state
+      try {
+        resetRecorder();
       } catch {}
     } catch (err) {
       console.error('processRecording error', err);

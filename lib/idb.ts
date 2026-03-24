@@ -48,3 +48,26 @@ export async function deleteFailedChunk(id: string) {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function clearFailedChunksBySession(sessionId?: string) {
+  const db = await openDB();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
+    req.onsuccess = async () => {
+      try {
+        const items = req.result || [];
+        for (const item of items) {
+          if (!sessionId || item.sessionId === sessionId) {
+            store.delete(item.id);
+          }
+        }
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
+}

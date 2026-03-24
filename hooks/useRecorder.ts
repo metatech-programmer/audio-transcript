@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { transcribeAudio, generateId } from '@/lib/utils';
-import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk } from '@/lib/idb';
+import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk, clearFailedChunksBySession } from '@/lib/idb';
 
 /**
  * Hook for handling audio recording with MediaRecorder API
@@ -620,6 +620,26 @@ export function useAudioRecorder() {
     };
   }, [recorder.language]);
 
+  // Expose clearQueue and sessionId via the returned API
+  const clearQueue = async (forSessionId?: string) => {
+    try {
+      await clearFailedChunksBySession(forSessionId);
+    } catch (e) {
+      try {
+        const items = await getAllFailedChunks();
+        for (const it of items) {
+          if (!forSessionId || it.sessionId === forSessionId) {
+            await deleteFailedChunk(it.id);
+          }
+        }
+      } catch {}
+    }
+    try {
+      const all = await getAllFailedChunks();
+      setQueuedCount(all.length || 0);
+    } catch {}
+  };
+
   return {
     startRecording,
     stopRecording,
@@ -645,6 +665,8 @@ export function useAudioRecorder() {
         setQueuedCount(items.length || 0);
       } catch {}
     },
+    clearQueue,
+    sessionId: sessionIdRef.current,
   };
 }
 
