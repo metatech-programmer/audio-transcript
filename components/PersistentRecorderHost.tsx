@@ -47,7 +47,7 @@ export default function PersistentRecorderHost() {
   return (
     <div className="fixed bottom-3 left-1/2 transform -translate-x-1/2 z-50">
       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-600 text-white shadow-lg text-sm">
-        <button onClick={() => router.push('/')} className="flex items-center gap-2" aria-label="Return to recorder">
+        <button onClick={() => router.push('/')} className="flex items-center gap-2" aria-label="Volver al grabador">
           <Mic size={14} className="text-white" />
           <span className="font-medium">Rec.</span>
           <span className="ml-1 text-xs opacity-90">{Math.floor(duration / 60)}:{String(duration % 60).padStart(2, '0')}</span>
@@ -64,7 +64,7 @@ export default function PersistentRecorderHost() {
           onClick={() => {
             try {
               if ((queued || 0) > 0) {
-                const ok = window.confirm(`Reintentar enviar ${queued} item(s) ahora? Esto puede consumir tokens.`);
+                const ok = window.confirm(`¿Reintentar el envío de ${queued} elemento(s) ahora? Esto puede consumir recursos.`);
                 if (!ok) return;
               }
               controller?.triggerRetry?.();
@@ -77,7 +77,7 @@ export default function PersistentRecorderHost() {
           <RotateCw size={12} className="text-white" />
         </button>
 
-        <button onClick={() => { window.dispatchEvent(new Event('app-stop-recording')); }} title="Stop recording" className="ml-1 p-1 rounded-full bg-white/20 hover:bg-white/30">
+        <button onClick={() => { window.dispatchEvent(new Event('app-stop-recording')); }} title="Detener grabación" className="ml-1 p-1 rounded-full bg-white/20 hover:bg-white/30">
           <Square size={12} className="text-white" />
         </button>
       </div>

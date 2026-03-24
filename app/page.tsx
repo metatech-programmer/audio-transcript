@@ -193,18 +193,18 @@ export default function Home() {
                         <Target size={24} className="text-slate-400" />
                       </div>
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                      No session selected
-                    </h3>
-                    <p className="text-[14px] text-slate-500 mb-8">
-                      Select an existing recording from the sidebar or start a new one to begin capturing insights.
-                    </p>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                        No hay grabación seleccionada
+                      </h3>
+                      <p className="text-[14px] text-slate-500 mb-8">
+                        Selecciona una grabación existente desde la barra lateral o inicia una nueva para comenzar a capturar notas.
+                      </p>
                     <button
                       onClick={handleCreateNew}
                       className="inline-flex items-center gap-2 rounded-md bg-slate-900 text-white px-5 py-2.5 text-[14px] font-medium hover:bg-slate-800 transition-colors shadow-sm"
                     >
                       <PlusCircle size={16} />
-                      New Recording
+                      Nueva grabación
                     </button>
                   </div>
                 </div>

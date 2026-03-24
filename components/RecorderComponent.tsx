@@ -466,10 +466,10 @@ export default function RecorderComponent({
                 <Mic size={20} className="text-slate-700" />
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">
-                Record Session
+                Grabar sesión
               </h2>
               <p className="text-[14px] text-slate-500">
-                Capture high-quality audio and automatically generate structured notes.
+                Captura audio de alta calidad y genera notas estructuradas automáticamente.
               </p>
             </div>
 
@@ -527,8 +527,8 @@ export default function RecorderComponent({
                     disabled={isRecording}
                     className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
                   >
-                    <option value="es">Spanish</option>
-                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="en">Inglés</option>
                   </select>
                 </div>
 
@@ -586,7 +586,7 @@ export default function RecorderComponent({
                   className="flex flex-1 items-center justify-center gap-2 px-6 py-2.5 rounded-md font-medium text-[14px] text-white bg-slate-900 hover:bg-slate-800 transition-colors disabled:opacity-50 shadow-sm"
                 >
                   <Mic size={16} />
-                  Start Recording
+                  Iniciar grabación
                 </button>
               ) : (
                 <button
@@ -595,7 +595,7 @@ export default function RecorderComponent({
                   className="flex flex-1 items-center justify-center gap-2 px-6 py-2.5 rounded-md font-medium text-[14px] text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 shadow-sm"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
-                  Stop Recording
+                  Detener grabación
                 </button>
               )}
             </div>
@@ -658,7 +658,7 @@ export default function RecorderComponent({
               <div className="mb-6">
                 <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
                   <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
-                    <FileText size={14} className="text-slate-500" /> Transcript Preview
+                    <FileText size={14} className="text-slate-500" /> Vista previa de la transcripción
                   </h3>
                   <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
                     {recorder.transcript}

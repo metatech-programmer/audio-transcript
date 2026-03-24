@@ -86,11 +86,11 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
     setIsDeleting(sessionId);
     try {
       await onDeleteSession(sessionId);
-      addToast('success', 'Session deleted successfully.');
+      addToast('success', 'Grabación eliminada correctamente.');
       setPendingDeleteId(null);
     } catch (error) {
       console.error('Delete session failed:', error);
-      addToast('error', 'Failed to delete session. Please try again.');
+      addToast('error', 'No se pudo eliminar la grabación. Intenta de nuevo.');
     } finally {
       setIsDeleting(null);
     }
@@ -108,12 +108,12 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
     <div className="w-full flex-col h-full bg-transparent">
       <div className="px-5 py-4 border-b border-[#EAEAEB] bg-white">
         <button onClick={onCreateNew} className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 text-[13px] font-medium transition-colors shadow-sm">
-          New Recording
+          Nueva grabación
         </button>
 
         <div className="relative group">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="Search sessions..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-[#F9F9FA] border border-transparent rounded-md text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white" />
+          <input type="text" placeholder="Buscar grabaciones..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-[#F9F9FA] border border-transparent rounded-md text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white" />
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
       <div className="flex-1 overflow-y-auto pb-6 px-2 py-2 space-y-3">
         {filteredSessions.length === 0 ? (
           <div className="px-5 py-8 text-center text-slate-500">
-            <p className="text-[13px]">{sessions.length === 0 ? 'No recordings yet' : 'No matching sessions'}</p>
+            <p className="text-[13px]">{sessions.length === 0 ? 'No hay grabaciones todavía' : 'No hay coincidencias'}</p>
           </div>
         ) : (
           Object.entries(groups).map(([subject, items]) => (
@@ -144,11 +144,11 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
       {pendingDeleteId && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-sm rounded-lg bg-white p-4 shadow-lg">
-            <h3 className="mb-2 text-base font-semibold text-slate-900">Delete session?</h3>
-            <p className="mb-4 text-sm text-slate-600">This action cannot be undone.</p>
+            <h3 className="mb-2 text-base font-semibold text-slate-900">¿Eliminar grabación?</h3>
+            <p className="mb-4 text-sm text-slate-600">Esta acción no se puede deshacer.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setPendingDeleteId(null)} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancel</button>
-              <button type="button" onClick={handleConfirmDelete} disabled={!!isDeleting} className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">{isDeleting ? 'Deleting...' : 'Delete'}</button>
+              <button type="button" onClick={() => setPendingDeleteId(null)} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancelar</button>
+              <button type="button" onClick={handleConfirmDelete} disabled={!!isDeleting} className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">{isDeleting ? 'Eliminando...' : 'Eliminar'}</button>
             </div>
           </div>
         </div>

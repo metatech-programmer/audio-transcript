@@ -47,9 +47,9 @@ export default function ToastContainer() {
                 type="button"
                 onClick={() => removeToast(toast.id)}
                 className="text-xs font-semibold opacity-80 hover:opacity-100"
-                aria-label="Dismiss notification"
+                aria-label="Descartar notificación"
               >
-                Close
+                Cerrar
               </button>
             </div>
           </div>
