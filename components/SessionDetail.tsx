@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { FileText, Download, Copy, Tag, Edit2, Save, X, ChevronDown, Calendar, Clock, Globe, BookOpen, Lightbulb, Check, Eye } from 'lucide-react';
-import { useExport } from '@/hooks/useTranscription';
+import { useExport, useSummarization } from '@/hooks/useTranscription';
 import { useAppStore } from '@/lib/store';
 import { formatDate, formatDuration } from '@/lib/utils';
 import type { Session } from '@/lib/types';
@@ -27,6 +27,8 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
     transcript: false,
     export: false,
   });
+  const { summarize, loading: summarizing, error: summarizingError } = useSummarization();
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -241,6 +243,30 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
                                         addToast('error','No se pudo copiar');
                                       }
                                     }} className="px-3 py-2 bg-white rounded-md border"> <Copy size={14} /> Copiar</button>
+                                    <button
+                                      onClick={async () => {
+                                        if (!session.transcript || !session.transcript.trim()) {
+                                          addToast('error', 'No hay transcripción para resumir.');
+                                          return;
+                                        }
+                                        try {
+                                          setIsGeneratingSummary(true);
+                                          const summary = await summarize(session.transcript, session.language);
+                                          const updated = { ...session, summary } as Session;
+                                          await onUpdate(updated);
+                                          addToast('success', 'Resumen regenerado y guardado.');
+                                        } catch (err) {
+                                          const msg = err instanceof Error ? err.message : 'Error al generar resumen';
+                                          addToast('error', `No se pudo generar el resumen: ${msg}`);
+                                        } finally {
+                                          setIsGeneratingSummary(false);
+                                        }
+                                      }}
+                                      disabled={isGeneratingSummary || summarizing}
+                                      className="px-3 py-2 bg-white rounded-md border ml-2 disabled:opacity-50"
+                                    >
+                                      {isGeneratingSummary || summarizing ? 'Generando...' : 'Reintentar resumen'}
+                                    </button>
                   </div>
                 </div>
 

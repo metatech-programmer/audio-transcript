@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   compress: true,
-  serverExternalPackages: ['@vercel/kv'],
+  serverExternalPackages: ['@supabase/supabase-js'],
 };
 
 module.exports = nextConfig;

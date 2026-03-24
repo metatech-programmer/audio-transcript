@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { transcribeAudio } from '@/lib/utils';
+import { transcribeAudio, generateId } from '@/lib/utils';
+import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk } from '@/lib/idb';
 
 /**
  * Hook for handling audio recording with MediaRecorder API
@@ -9,6 +10,10 @@ export function useAudioRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const processedChunksRef = useRef<number>(0);
+  const lastRotateIndexRef = useRef<number>(0);
+  const sessionIdRef = useRef<string | null>(null);
+  const rotateTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const rotateFuncRef = useRef<((final: boolean) => Promise<void>) | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -25,6 +30,8 @@ export function useAudioRecorder() {
   const [lastChunkText, setLastChunkText] = useState('');
   const [processedChunks, setProcessedChunks] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [queuedCount, setQueuedCount] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const [liveEngine, setLiveEngine] = useState<'browser' | 'api'>('api');
   const [liveEngineMode, setLiveEngineMode] = useState<'auto' | 'browser' | 'api'>('auto');
   const [selectedDialect, setSelectedDialect] = useState('es-ES');
@@ -97,6 +104,85 @@ export function useAudioRecorder() {
       setLiveStatus('listening');
       setLastChunkText('');
       setProcessedChunks(0);
+
+      // initialize session ID and rotation pointer
+      sessionIdRef.current = generateId();
+      lastRotateIndexRef.current = 0;
+
+      // Define rotation/send function and store on ref so stopRecording can call it
+      rotateFuncRef.current = async (final: boolean) => {
+        try {
+          const start = lastRotateIndexRef.current || 0;
+          const end = audioChunksRef.current.length;
+          if (end <= start) return;
+
+          const chunksToSend = audioChunksRef.current.slice(start, end);
+          const blob = new Blob(chunksToSend, { type: 'audio/webm' });
+
+          const form = new FormData();
+          form.append('audio', blob, `chunk_${start}_${end}.webm`);
+          form.append('sessionId', sessionIdRef.current || '');
+          form.append('chunkIndex', String(start));
+          form.append('final', final ? '1' : '0');
+          form.append('language', recorder.language);
+
+          const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
+          if (resp.ok) {
+            const payload = await resp.json();
+            const text = payload.text || '';
+            // persist transcript part locally
+            try {
+              const key = `session:${sessionIdRef.current}`;
+              const raw = localStorage.getItem(key);
+              const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
+              parsed.transcripts = parsed.transcripts || [];
+              parsed.transcripts.push({ index: start, text, createdAt: new Date().toISOString(), status: 'done' });
+              localStorage.setItem(key, JSON.stringify(parsed));
+            } catch {}
+
+            if (text && text.trim()) {
+              transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
+              setTranscript(transcriptRef.current);
+            }
+
+            // advance the rotation pointer only on success
+            lastRotateIndexRef.current = end;
+            setProcessedChunks(lastRotateIndexRef.current);
+          } else {
+            // queue failed chunk in IndexedDB for retry
+            try {
+              await saveFailedChunk({
+                id: `${sessionIdRef.current}:${start}:${Date.now()}`,
+                sessionId: sessionIdRef.current || '',
+                chunkIndex: start,
+                blob,
+                final,
+                language: recorder.language,
+              });
+              // update queued count
+              const all = await getAllFailedChunks();
+              setQueuedCount(all.length || 0);
+            } catch (e) {
+              // fallback to localStorage if IndexedDB fails
+              try {
+                const key = `session:${sessionIdRef.current}`;
+                const raw = localStorage.getItem(key);
+                const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
+                parsed.transcripts = parsed.transcripts || [];
+                parsed.transcripts.push({ index: start, text: '', createdAt: new Date().toISOString(), status: 'failed' });
+                localStorage.setItem(key, JSON.stringify(parsed));
+              } catch {}
+            }
+          }
+        } catch (err) {
+          console.debug('rotateAndSendChunk error', err);
+        }
+      };
+
+      // Start rotation timer: every 10 minutes flush a larger chunk to server
+      rotateTimerRef.current = setInterval(() => {
+        void rotateFuncRef.current?.(false);
+      }, 10 * 60 * 1000);
 
       // Setup microphone level meter for real-time user feedback.
       const audioContext = new AudioContext();
@@ -297,6 +383,21 @@ export function useAudioRecorder() {
         } catch (err) {
           console.error('Final transcription error:', err);
         }
+        // Send any remaining rotated chunk to server as final
+        try {
+          if (rotateFuncRef.current) {
+            await rotateFuncRef.current(true);
+          }
+        } catch (e) {
+          console.debug('Final rotate/send failed', e);
+        }
+        // Clear rotate timer
+        try {
+          if (rotateTimerRef.current) {
+            clearInterval(rotateTimerRef.current);
+            rotateTimerRef.current = null;
+          }
+        } catch {}
         
         resolve(audioBlob);
       };
@@ -338,6 +439,11 @@ export function useAudioRecorder() {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+
+      if (rotateTimerRef.current) {
+        clearInterval(rotateTimerRef.current);
+        rotateTimerRef.current = null;
+      }
     });
   };
 
@@ -366,6 +472,64 @@ export function useAudioRecorder() {
     };
   }, []);
 
+  // Retry worker: periodically attempt to resend failed chunks stored in IndexedDB
+  let _running = false;
+  const processQueue = async () => {
+    if (_running) return;
+    if (!navigator.onLine) return;
+    _running = true;
+    setRetrying(true);
+    try {
+      const items = await getAllFailedChunks();
+      setQueuedCount(items.length || 0);
+      for (const item of items) {
+        try {
+          const form = new FormData();
+          form.append('audio', item.blob, `retry_${item.sessionId}_${item.chunkIndex}.webm`);
+          form.append('sessionId', item.sessionId || '');
+          form.append('chunkIndex', String(item.chunkIndex));
+          form.append('final', item.final ? '1' : '0');
+          form.append('language', item.language || recorder.language);
+
+          const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
+          if (resp.ok) {
+            const payload = await resp.json();
+            const text = payload.text || '';
+            if (text && text.trim()) {
+              transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
+              setTranscript(transcriptRef.current);
+            }
+            await deleteFailedChunk(item.id);
+            const remaining = await getAllFailedChunks();
+            setQueuedCount(remaining.length || 0);
+          }
+        } catch (e) {
+          // leave in queue for next attempt
+        }
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setRetrying(false);
+      _running = false;
+    }
+  };
+
+  useEffect(() => {
+    // Start immediately and then every 30s
+    void processQueue();
+    const interval = setInterval(() => void processQueue(), 30 * 1000);
+
+    // Also process when back online
+    const onOnline = () => void processQueue();
+    window.addEventListener('online', onOnline);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [recorder.language]);
+
   return {
     startRecording,
     stopRecording,
@@ -382,6 +546,9 @@ export function useAudioRecorder() {
     selectedDialect,
     setLiveEngineMode,
     setSelectedDialect,
+    queuedCount,
+    retrying,
+    triggerRetry: processQueue,
   };
 }
 

@@ -10,6 +10,7 @@ import TestPhase from './TestPhase';
 import SoundWaves from './SoundWaves';
 import type { Session, Summary } from '@/lib/types';
 import { useEffect } from 'react';
+import { getAllFailedChunks } from '@/lib/idb';
 
 interface RecorderComponentProps {
   onCreateSession?: (sessionData: Partial<Session>) => Promise<Session>;
@@ -36,7 +37,36 @@ export default function RecorderComponent({
     audioLevel,
     selectedDialect,
     setSelectedDialect,
-  } = useAudioRecorder();
+    queuedCount,
+    retrying,
+    triggerRetry,
+  } = useAudioRecorder() as any;
+
+  const [queuedItems, setQueuedItems] = useState<any[]>([]);
+  const [showQueueDetails, setShowQueueDetails] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const items = await getAllFailedChunks();
+        if (mounted) setQueuedItems(items || []);
+      } catch (e) {
+        // ignore
+      }
+    };
+    void load();
+    return () => { mounted = false; };
+  }, [queuedCount, retrying]);
+
+  function fmtTime(iso?: string) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diff < 60) return `${diff}s`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    return `${Math.floor(diff / 3600)}h`;
+  }
 
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
   const isFirefox = ua.includes('firefox');
@@ -462,6 +492,45 @@ export default function RecorderComponent({
                       : 'Processing audio...'}
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Upload queue status */}
+            {(queuedCount > 0 || retrying) && (
+              <div className="mb-4 rounded-md border border-[#EAEAEB] bg-[#FFF7ED] p-3 text-center text-sm text-slate-800 shadow-sm relative">
+                <div className="flex items-center justify-center gap-2">
+                  {retrying ? (
+                    <div className="h-3.5 w-3.5 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
+                  ) : (
+                    <div className="h-2.5 w-2.5 rounded-full bg-orange-400" />
+                  )}
+                  <span>
+                    {retrying ? 'Reintentando envíos pendientes...' : 'Envíos pendientes:'} {queuedCount}
+                  </span>
+                  <button onClick={() => setShowQueueDetails((s) => !s)} className="ml-3 px-2 py-1 text-xs border rounded bg-white">Detalles</button>
+                  <button onClick={() => void triggerRetry?.()} className="ml-2 px-2 py-1 text-xs border rounded bg-white">Reintentar ahora</button>
+                </div>
+
+                {showQueueDetails && (
+                  <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[28rem] max-w-full bg-white border rounded shadow-lg p-3 text-left text-xs z-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <strong>Historial de reintentos ({queuedItems.length})</strong>
+                      <button onClick={() => setShowQueueDetails(false)} className="px-2 py-1 text-xs">Cerrar</button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {queuedItems.length === 0 && <div className="text-slate-600">No hay elementos en la cola.</div>}
+                      {queuedItems.map((it: any) => (
+                        <div key={it.id} className="py-1 border-b last:border-b-0">
+                          <div className="flex items-center justify-between">
+                            <div className="text-slate-700">{it.sessionId || '—'}</div>
+                            <div className="text-slate-500">chunk #{it.chunkIndex}</div>
+                          </div>
+                          <div className="text-slate-500">Guardado: {fmtTime(it.createdAt)} atrás · id: {it.id.slice(0, 12)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -1,12 +1,22 @@
 /**
- * Database utilities for Vercel KV
- * Fallback to localStorage if KV not available
+ * Database utilities using Supabase as primary store.
+ * Falls back to in-memory map when Supabase not configured.
  */
 
-import { kv } from '@vercel/kv';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const USE_KV = process.env.USE_KV_DATABASE === 'true';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
+const USE_SUPABASE = !!(SUPABASE_URL && SUPABASE_KEY);
+
 const memorySessions = new Map<string, DBSession>();
+
+let supabase: SupabaseClient | null = null;
+if (USE_SUPABASE) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false },
+  });
+}
 
 export interface DBSession {
   id: string;
@@ -23,14 +33,17 @@ export interface DBSession {
 
 /**
  * Save a session to database
+ * Assumes a Supabase table `sessions` with columns: id (text PK), data (jsonb), created_at, updated_at
  */
 export async function dbSaveSession(session: DBSession): Promise<DBSession> {
-  if (USE_KV) {
+  session.createdAt = session.createdAt || new Date().toISOString();
+  session.updatedAt = session.updatedAt || session.createdAt;
+
+  if (USE_SUPABASE && supabase) {
     try {
-      await kv.hset(`session:${session.id}`, session as any);
-      await kv.lpush('sessions:list', session.id);
+      await supabase.from('sessions').upsert({ id: session.id, data: session, created_at: session.createdAt, updated_at: session.updatedAt });
     } catch (error) {
-      console.error('KV save error, falling back to memory:', error);
+      console.error('Supabase save error, falling back to memory:', error);
     }
   }
 
@@ -42,28 +55,21 @@ export async function dbSaveSession(session: DBSession): Promise<DBSession> {
  * Get all sessions
  */
 export async function dbGetSessions(): Promise<DBSession[]> {
-  if (!USE_KV) {
+  if (!USE_SUPABASE || !supabase) {
     return Array.from(memorySessions.values()).sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
   }
 
   try {
-    const sessionIds = (await kv.lrange('sessions:list', 0, -1)) as string[];
-    const sessions = [];
-
-    for (const id of sessionIds) {
-      const session = await kv.hgetall(`session:${id}`);
-      if (session && Object.keys(session).length > 0) {
-        sessions.push(session as unknown as DBSession);
-      }
+    const { data, error } = await supabase.from('sessions').select('id, data').order('created_at', { ascending: false });
+    if (error) {
+      console.error('Supabase query error:', error);
+      return [];
     }
 
-    return sessions.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const sessions: DBSession[] = (data || []).map((row: any) => row.data as DBSession);
+    return sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (error) {
     console.error('DB error:', error);
     return [];
@@ -74,13 +80,16 @@ export async function dbGetSessions(): Promise<DBSession[]> {
  * Get a session by ID
  */
 export async function dbGetSession(id: string): Promise<DBSession | null> {
-  if (!USE_KV) return memorySessions.get(id) || null;
+  if (!USE_SUPABASE || !supabase) return memorySessions.get(id) || null;
 
   try {
-    const session = await kv.hgetall(`session:${id}`);
-    return session && Object.keys(session).length > 0
-      ? (session as unknown as DBSession)
-      : null;
+    const { data, error } = await supabase.from('sessions').select('data').eq('id', id).single();
+    if (error) {
+      console.error('Supabase get error:', error);
+      return null;
+    }
+
+    return data ? (data.data as DBSession) : null;
   } catch (error) {
     console.error('DB error:', error);
     return null;
@@ -92,11 +101,12 @@ export async function dbGetSession(id: string): Promise<DBSession | null> {
  */
 export async function dbUpdateSession(session: DBSession): Promise<DBSession> {
   session.updatedAt = new Date().toISOString();
-  if (USE_KV) {
+
+  if (USE_SUPABASE && supabase) {
     try {
-      await kv.hset(`session:${session.id}`, session as any);
+      await supabase.from('sessions').upsert({ id: session.id, data: session, updated_at: session.updatedAt });
     } catch (error) {
-      console.error('KV update error, falling back to memory:', error);
+      console.error('Supabase update error, falling back to memory:', error);
     }
   }
 
@@ -108,12 +118,11 @@ export async function dbUpdateSession(session: DBSession): Promise<DBSession> {
  * Delete a session
  */
 export async function dbDeleteSession(id: string): Promise<void> {
-  if (USE_KV) {
+  if (USE_SUPABASE && supabase) {
     try {
-      await kv.del(`session:${id}`);
-      await kv.lrem('sessions:list', 1, id);
+      await supabase.from('sessions').delete().eq('id', id);
     } catch (error) {
-      console.error('KV delete error:', error);
+      console.error('Supabase delete error:', error);
     }
   }
 
@@ -136,8 +145,6 @@ export async function dbSearchSessions(query: string): Promise<DBSession[]> {
   const lowerQuery = query.toLowerCase();
 
   return sessions.filter(
-    (s) =>
-      s.title.toLowerCase().includes(lowerQuery) ||
-      s.transcript.toLowerCase().includes(lowerQuery)
+    (s) => s.title.toLowerCase().includes(lowerQuery) || s.transcript.toLowerCase().includes(lowerQuery)
   );
 }
