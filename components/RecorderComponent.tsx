@@ -9,6 +9,7 @@ import { formatDuration, transcribeAudio } from '@/lib/utils';
 import TestPhase from './TestPhase';
 import SoundWaves from './SoundWaves';
 import type { Session, Summary } from '@/lib/types';
+import { useEffect } from 'react';
 
 interface RecorderComponentProps {
   onCreateSession?: (sessionData: Partial<Session>) => Promise<Session>;
@@ -19,10 +20,12 @@ export default function RecorderComponent({
   onCreateSession,
   onSessionSaved,
 }: RecorderComponentProps) {
-  const [showTestPhase, setShowTestPhase] = useState(true);
+  const [showTestPhase, setShowTestPhase] = useState(false);
   const [testPassed, setTestPassed] = useState(false);
   // Nueva opción: fuente de audio
   const [audioSource, setAudioSource] = useState<'mic' | 'tab' | 'system'>('mic');
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   const {
     startRecording,
@@ -34,6 +37,21 @@ export default function RecorderComponent({
     selectedDialect,
     setSelectedDialect,
   } = useAudioRecorder();
+
+  useEffect(() => {
+    const loadDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioIns = devices.filter(d => d.kind === 'audioinput');
+        setAudioInputs(audioIns);
+        const first = audioIns[0];
+        if (first && !selectedDeviceId) setSelectedDeviceId(first.deviceId);
+      } catch (err) {
+        // ignore
+      }
+    };
+    loadDevices();
+  }, []);
 
   const { summarize, loading: summarizing } = useSummarization();
 
@@ -49,22 +67,36 @@ export default function RecorderComponent({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleStart = async () => {
+    // If user chose microphone and hasn't passed test, show test flow first
+    if (audioSource === 'mic' && !testPassed) {
+      setShowTestPhase(true);
+      return;
+    }
+
+    // Otherwise proceed to start recording immediately
+    await startRecordingFlow();
+  };
+
+  // Core start logic extracted so TestPhase can trigger it after passing
+  const startRecordingFlow = async () => {
     resetRecorder();
     // Selección de fuente de audio
     let stream: MediaStream | undefined;
     try {
       if (audioSource === 'mic') {
-        // Micrófono normal
-        stream = await navigator.mediaDevices.getUserMedia({
+        // Micrófono normal. If user selected a specific device, prefer it.
+        const constraints: MediaStreamConstraints = {
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
+            ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
           },
-        });
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
       } else if (audioSource === 'tab') {
         // Audio de pestaña (requiere permisos)
-        // getDisplayMedia puede capturar audio de pestaña si el navegador lo soporta
+        // getDisplayMedia permite al usuario elegir la pestaña en el diálogo del navegador
         stream = await navigator.mediaDevices.getDisplayMedia({
           audio: true,
           video: false,
@@ -77,14 +109,22 @@ export default function RecorderComponent({
         });
       }
     } catch (err) {
-      addToast('error', 'No se pudo acceder a la fuente de audio seleccionada.');
+      addToast('error', 'No se pudo acceder a la fuente de audio seleccionada. Asegúrate de permitir el acceso en el diálogo del navegador.');
       return;
     }
+
     await startRecording({
       engineMode: 'auto',
       dialect: selectedDialect,
       stream,
     });
+  };
+
+  const startAfterTest = async () => {
+    setTestPassed(true);
+    setShowTestPhase(false);
+    // small delay to let modal close
+    setTimeout(() => startRecordingFlow(), 150);
   };
 
   const handleStop = async () => {
@@ -177,6 +217,14 @@ export default function RecorderComponent({
 
   return (
     <div className="flex-1 overflow-y-auto bg-transparent">
+      {showTestPhase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <TestPhase
+            onTestPassed={() => startAfterTest()}
+            onCancel={() => setShowTestPhase(false)}
+          />
+        </div>
+      )}
       <div className="min-h-full w-full p-6 md:p-12 flex flex-col items-center justify-center">
         <div className="w-full max-w-xl">
           {/* Main Card */}
@@ -213,6 +261,23 @@ export default function RecorderComponent({
                   <option value="tab">Audio de pestaña</option>
                   <option value="system">Audio del sistema</option>
                 </select>
+
+                {audioSource === 'mic' && (
+                  <div className="mt-2">
+                    <label className="text-[12px] text-slate-600">Seleccionar micrófono</label>
+                    <select
+                      value={selectedDeviceId ?? ''}
+                      onChange={e => setSelectedDeviceId(e.target.value || null)}
+                      disabled={isRecording}
+                      className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800"
+                    >
+                      {audioInputs.length === 0 && <option value="">Predeterminado</option>}
+                      {audioInputs.map(d => (
+                        <option key={d.deviceId} value={d.deviceId}>{d.label || 'Micrófono ' + d.deviceId.slice(0,6)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Language */}

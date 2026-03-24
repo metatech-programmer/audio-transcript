@@ -14,10 +14,57 @@ export interface Session {
 }
 
 export interface Summary {
+  // Backwards-compatible quick fields
   executiveSummary: string;
   keyPoints: string[];
   lectureNotes: string;
   actionableInsights: string[];
+
+  // High-complexity structured fields
+  metadata?: {
+    subject?: string;
+    unit?: string;
+    sessionNumber?: string;
+    thematicAxis?: string;
+    keywords?: string[];
+  };
+  learningOutcomes?: {
+    competencies?: string[];
+    mainProblem?: string;
+  };
+  theoreticalCore?: {
+    concepts?: string;
+    modelsStandards?: string;
+    referencedAuthors?: string[];
+  };
+  comparativeAnalysis?: {
+    prosCons?: string;
+    comparisons?: string;
+    contextOfUse?: string;
+  };
+  examples?: {
+    academicExample?: string;
+    caseStudy?: string;
+    antipatterns?: string;
+  };
+  technicalComponent?: {
+    codeSnippets?: string;
+    tools?: string[];
+    diagrams?: string;
+  };
+  debate?: {
+    controversies?: string;
+    participantContributions?: string;
+  };
+  interdisciplinary?: {
+    relations?: string;
+    workplaceApplications?: string;
+  };
+  keyTakeaways?: string[]; // 3 golden points
+  references?: {
+    readings?: string[];
+    questionsForStudy?: string[];
+  };
 }
 
 export interface TranscriptionChunk {

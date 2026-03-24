@@ -131,48 +131,118 @@ function getChunkPrompt(chunk: string, language: string): string {
 
 function getFinalPrompt(consolidatedInput: string, language: string): string {
   if (language === 'es') {
-    return `Eres un experto en resumir clases universitarias. Tu objetivo es generar notas profundas, claras y bien estructuradas, como si fueras el mejor estudiante de la clase.
+    return `Eres un experto en resumir clases de maestría. Genera un resumen académico de ALTA COMPLEJIDAD y FORMATO ESTRICTO.
 
-Analiza la siguiente transcripción de una clase completa (puede durar varias horas) y responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional) en este formato exacto:
+Analiza la siguiente transcripción completa (puede durar varias horas) y responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional). Debe respetar exactamente la siguiente estructura de objetos (incluye campos opcionales cuando no haya información explícita):
+
 {
-  "executiveSummary": "Resumen ejecutivo de 2-4 oraciones que capture la esencia completa de la clase, incluyendo contexto, propósito y conclusiones principales.",
-  "keyPoints": [
-    "Punto 1: Concepto u idea principal con detalles y ejemplos",
-    "Punto 2: Concepto u idea principal con detalles y ejemplos",
-    "Punto 3: Concepto u idea principal con detalles y ejemplos",
-    "Punto 4: Concepto u idea principal con detalles y ejemplos",
-    "Punto 5: Concepto u idea principal con detalles y ejemplos"
-  ],
-  "lectureNotes": "Notas detalladas y estructuradas como un cuaderno bien organizado. Incluye:\n- TEMAS PRINCIPALES: Títulos y subtemas\n- DEFINICIONES: Conceptos clave y sus definiciones\n- EJEMPLOS: Ejemplos específicos\n- EXPLICACIONES: Detalles técnicos y explicaciones profundas\n- ESTRUCTURA LÓGICA: Cómo conectan los conceptos\n- CONEXIONES: Relaciones entre temas\n- RESUMENES PARCIALES: Si la clase es larga, incluye resúmenes por sección\n\nFormato como texto estructurado con saltos de línea, sin viñetas. Sé lo más detallado y claro posible.",
-  "actionableInsights": [
-    "Insight 1: Aplicación práctica, consejo o concepto clave para recordar",
-    "Insight 2: Aplicación práctica, consejo o concepto clave para recordar",
-    "Insight 3: Aplicación práctica, consejo o concepto clave para recordar"
-  ]
+  "metadata": {
+    "subject": "Nombre de la asignatura",
+    "unit": "Unidad / módulo",
+    "sessionNumber": "Número de sesión",
+    "thematicAxis": "Eje temático (ej. Arquitectura de Software)",
+    "keywords": ["keyword1", "keyword2"]
+  },
+  "learningOutcomes": {
+    "competencies": ["Competencia 1", "Competencia 2"],
+    "mainProblem": "Problema principal que aborda la sesión"
+  },
+  "theoreticalCore": {
+    "concepts": "Conceptos fundamentales y definiciones técnicas (detallado)",
+    "modelsStandards": "Modelos, estándares o frameworks citados",
+    "referencedAuthors": ["Autor A", "Paper B"]
+  },
+  "comparativeAnalysis": {
+    "prosCons": "Ventajas y desventajas",
+    "comparisons": "Comparación con alternativas",
+    "contextOfUse": "Contexto de uso"
+  },
+  "examples": {
+    "academicExample": "Ejemplo académico detallado",
+    "caseStudy": "Caso de estudio real",
+    "antipatterns": "Anti-patrones"
+  },
+  "technicalComponent": {
+    "codeSnippets": "Fragmentos de código o pseudocódigo",
+    "tools": ["herramienta1", "libreríaX"],
+    "diagrams": "Descripción de diagramas/arquitectura"
+  },
+  "debate": {
+    "controversies": "Puntos polémicos",
+    "participantContributions": "Aportes relevantes de estudiantes"
+  },
+  "interdisciplinary": {
+    "relations": "Relación con otras materias",
+    "workplaceApplications": "Aplicaciones en entornos laborales"
+  },
+  "executiveSummary": "Resumen ejecutivo (2-4 oraciones)",
+  "keyPoints": ["Punto clave 1", "Punto clave 2"],
+  "lectureNotes": "Notas estructuradas, con secciones y resúmenes parciales cuando aplique",
+  "keyTakeaways": ["Takeaway 1","Takeaway 2","Takeaway 3"],
+  "actionableInsights": ["Insight 1","Insight 2"],
+  "references": {
+    "readings": ["Referencia 1", "Referencia 2"],
+    "questionsForStudy": ["Pregunta 1", "Pregunta 2"]
+  }
 }
 
 TRANSCRIPCIÓN:
 ${consolidatedInput}`;
   }
 
-  return `You are an expert in summarizing university lectures. Your goal is to generate deep, clear and well-structured notes, as if you were the best student in the class.
+  return `You are an expert summarizer for graduate-level lectures. Produce a HIGH-COMPLEXITY academic summary in STRICT JSON ONLY (no markdown, no extra text).
 
-Analyze the following transcript of a complete lecture (may last several hours) and respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
+Analyze the following full transcript (may last several hours) and return JSON matching exactly this structure (use empty strings/arrays when info is missing):
+
 {
-  "executiveSummary": "Executive summary of 2-4 sentences that captures the complete essence of the lecture, including context, purpose and main conclusions.",
-  "keyPoints": [
-    "Point 1: Main concept or idea with details and examples",
-    "Point 2: Main concept or idea with details and examples",
-    "Point 3: Main concept or idea with details and examples",
-    "Point 4: Main concept or idea with details and examples",
-    "Point 5: Main concept or idea with details and examples"
-  ],
-  "lectureNotes": "Detailed and structured notes like a well-organized notebook. Include:\n- MAIN TOPICS: Main titles and subtopics\n- DEFINITIONS: Key concepts and their definitions\n- EXAMPLES: Specific examples\n- EXPLANATIONS: Technical details and deep explanations\n- LOGICAL STRUCTURE: How concepts connect\n- CONNECTIONS: Relationships between topics\n- PARTIAL SUMMARIES: If the lecture is long, include summaries by section\n\nFormat as structured text with line breaks, without bullet points. Be as detailed and clear as possible.",
-  "actionableInsights": [
-    "Insight 1: Practical application, advice or key concept to remember",
-    "Insight 2: Practical application, advice or key concept to remember",
-    "Insight 3: Practical application, advice or key concept to remember"
-  ]
+  "metadata": {
+    "subject": "Course name",
+    "unit": "Unit/module",
+    "sessionNumber": "Session number",
+    "thematicAxis": "Thematic axis (e.g., Software Architecture)",
+    "keywords": ["keyword1", "keyword2"]
+  },
+  "learningOutcomes": {
+    "competencies": ["Competency 1", "Competency 2"],
+    "mainProblem": "Main problem the session addresses"
+  },
+  "theoreticalCore": {
+    "concepts": "Fundamental concepts and technical definitions",
+    "modelsStandards": "Models, standards or frameworks cited",
+    "referencedAuthors": ["Author A", "Paper B"]
+  },
+  "comparativeAnalysis": {
+    "prosCons": "Advantages and disadvantages",
+    "comparisons": "Comparison with alternatives",
+    "contextOfUse": "Best-fit contexts"
+  },
+  "examples": {
+    "academicExample": "Academic example",
+    "caseStudy": "Real-world case study",
+    "antipatterns": "Anti-patterns"
+  },
+  "technicalComponent": {
+    "codeSnippets": "Code or pseudocode snippets",
+    "tools": ["tool1", "libX"],
+    "diagrams": "Architecture/diagram descriptions"
+  },
+  "debate": {
+    "controversies": "Controversial points discussed",
+    "participantContributions": "Key student contributions"
+  },
+  "interdisciplinary": {
+    "relations": "Relations to other subjects",
+    "workplaceApplications": "Potential workplace applications"
+  },
+  "executiveSummary": "Executive summary (2-4 sentences)",
+  "keyPoints": ["Key point 1", "Key point 2"],
+  "lectureNotes": "Structured lecture notes, include partial summaries by section",
+  "keyTakeaways": ["Takeaway 1","Takeaway 2","Takeaway 3"],
+  "actionableInsights": ["Insight 1","Insight 2"],
+  "references": {
+    "readings": ["Reference 1", "Reference 2"],
+    "questionsForStudy": ["Question 1", "Question 2"]
+  }
 }
 
 TRANSCRIPT:
@@ -180,19 +250,84 @@ ${consolidatedInput}`;
 }
 
 function normalizeSummary(input: unknown) {
-  const data =
-    input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const data = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
 
-  const executiveSummary = toText(data.executiveSummary);
-  const lectureNotes = toText(data.lectureNotes);
-  const keyPoints = toStringList(data.keyPoints);
-  const actionableInsights = toStringList(data.actionableInsights);
+  // Backwards-compatible fields
+  const executiveSummary = toText(data.executiveSummary || data.summary || '');
+  const lectureNotes = toText(data.lectureNotes || data.notas || '');
+  const keyPoints = toStringList(data.keyPoints || data.puntosClave || []);
+  const actionableInsights = toStringList(data.actionableInsights || data.insights || []);
+
+  // High-complexity structured fields
+  const metadata = (data.metadata && typeof data.metadata === 'object') ? data.metadata as Record<string, unknown> : {
+    subject: toText((data as any).subject || ''),
+    unit: toText((data as any).unit || ''),
+    sessionNumber: toText((data as any).sessionNumber || ''),
+    thematicAxis: toText((data as any).thematicAxis || (data as any).ejeTematico || ''),
+    keywords: toStringList((data as any).keywords || (data as any).palabrasClave || []),
+  };
+
+  const learningOutcomes = {
+    competencies: toStringList((data.learningOutcomes && (data.learningOutcomes as any).competencies) || (data as any).competencies || []),
+    mainProblem: toText((data.learningOutcomes && (data.learningOutcomes as any).mainProblem) || (data as any).mainProblem || ''),
+  };
+
+  const theoreticalCore = {
+    concepts: toText((data.theoreticalCore && (data.theoreticalCore as any).concepts) || (data as any).concepts || ''),
+    modelsStandards: toText((data.theoreticalCore && (data.theoreticalCore as any).modelsStandards) || (data as any).modelsStandards || ''),
+    referencedAuthors: toStringList((data.theoreticalCore && (data.theoreticalCore as any).referencedAuthors) || (data as any).referencedAuthors || []),
+  };
+
+  const comparativeAnalysis = {
+    prosCons: toText((data.comparativeAnalysis && (data.comparativeAnalysis as any).prosCons) || (data as any).prosCons || ''),
+    comparisons: toText((data.comparativeAnalysis && (data.comparativeAnalysis as any).comparisons) || (data as any).comparisons || ''),
+    contextOfUse: toText((data.comparativeAnalysis && (data.comparativeAnalysis as any).contextOfUse) || (data as any).contextOfUse || ''),
+  };
+
+  const examples = {
+    academicExample: toText((data.examples && (data.examples as any).academicExample) || (data as any).academicExample || ''),
+    caseStudy: toText((data.examples && (data.examples as any).caseStudy) || (data as any).caseStudy || ''),
+    antipatterns: toText((data.examples && (data.examples as any).antipatterns) || (data as any).antipatterns || ''),
+  };
+
+  const technicalComponent = {
+    codeSnippets: toText((data.technicalComponent && (data.technicalComponent as any).codeSnippets) || (data as any).codeSnippets || ''),
+    tools: toStringList((data.technicalComponent && (data.technicalComponent as any).tools) || (data as any).tools || []),
+    diagrams: toText((data.technicalComponent && (data.technicalComponent as any).diagrams) || (data as any).diagrams || ''),
+  };
+
+  const debate = {
+    controversies: toText((data.debate && (data.debate as any).controversies) || (data as any).controversies || ''),
+    participantContributions: toText((data.debate && (data.debate as any).participantContributions) || (data as any).participantContributions || ''),
+  };
+
+  const interdisciplinary = {
+    relations: toText((data.interdisciplinary && (data.interdisciplinary as any).relations) || (data as any).relations || ''),
+    workplaceApplications: toText((data.interdisciplinary && (data.interdisciplinary as any).workplaceApplications) || (data as any).workplaceApplications || ''),
+  };
+
+  const keyTakeaways = toStringList(data.keyTakeaways || (data as any).keyTakeaways || []);
+
+  const references = {
+    readings: toStringList((data.references && (data.references as any).readings) || (data as any).readings || []),
+    questionsForStudy: toStringList((data.references && (data.references as any).questionsForStudy) || (data as any).questionsForStudy || []),
+  };
 
   return {
     executiveSummary,
     keyPoints,
     lectureNotes,
     actionableInsights,
+    metadata,
+    learningOutcomes,
+    theoreticalCore,
+    comparativeAnalysis,
+    examples,
+    technicalComponent,
+    debate,
+    interdisciplinary,
+    keyTakeaways,
+    references,
   };
 }
 

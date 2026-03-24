@@ -6,9 +6,9 @@ import { useAppStore } from '@/lib/store';
 import { useSessions } from '@/hooks/useRecorder';
 import SessionHistory from '@/components/SessionHistory';
 import RecorderComponent from '@/components/RecorderComponent';
-import SessionDetail from '@/components/SessionDetail';
 import ToastContainer from '@/components/ToastContainer';
 import type { Session } from '@/lib/types';
+import SessionDetail from '@/components/SessionDetail';
 
 export default function Home() {
   const [view, setView] = useState<'recorder' | 'session'>('recorder');
@@ -90,36 +90,42 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile/Tablet Header */}
         <div className="lg:hidden sticky top-0 z-20 border-b border-[#EAEAEB] bg-white/80 backdrop-blur-md">
-          <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center justify-between px-3 py-3">
             <h1 className="text-[15px] font-semibold tracking-tight text-slate-800 flex items-center gap-2">
               <BookOpen size={18} className="text-slate-800" />
               StudyBuddy
             </h1>
-            <div className="flex gap-2">
+            <nav role="tablist" aria-label="Main navigation" className="flex gap-2">
               <button
+                role="tab"
+                aria-pressed={view === 'recorder'}
+                aria-current={view === 'recorder' ? 'true' : undefined}
                 onClick={handleCreateNew}
-                className={`px-3 py-1.5 rounded-md font-medium text-[13px] transition ${
+                className={`min-w-[88px] px-4 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
                   view === 'recorder'
                     ? 'bg-slate-800 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <Mic size={14} className="inline mr-1" />
+                <Mic size={16} />
                 Record
               </button>
               <button
+                role="tab"
+                aria-pressed={view === 'session'}
+                aria-current={view === 'session' && currentSession ? 'true' : undefined}
                 onClick={() => setView('session')}
                 disabled={!mounted ? undefined : !currentSession}
-                className={`px-3 py-1.5 rounded-md font-medium text-[13px] transition ${
+                className={`min-w-[88px] px-4 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
                   view === 'session' && currentSession
                     ? 'bg-slate-800 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50'
                 }`}
               >
-                <Eye size={14} className="inline mr-1" />
+                <Eye size={16} />
                 View
               </button>
-            </div>
+            </nav>
           </div>
         </div>
 
