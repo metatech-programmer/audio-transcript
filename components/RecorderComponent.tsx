@@ -38,6 +38,11 @@ export default function RecorderComponent({
     setSelectedDialect,
   } = useAudioRecorder();
 
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+  const isFirefox = ua.includes('firefox');
+  const isSafari = /safari/.test(ua) && !/chrome|crios|crmo|edg/.test(ua);
+  const isChromium = /chrome|crios|crmo|edg|brave/.test(ua);
+
   useEffect(() => {
     const loadDevices = async () => {
       try {
@@ -45,7 +50,13 @@ export default function RecorderComponent({
         const audioIns = devices.filter(d => d.kind === 'audioinput');
         setAudioInputs(audioIns);
         const first = audioIns[0];
-        if (first && !selectedDeviceId) setSelectedDeviceId(first.deviceId);
+        // Auto-select known virtual devices if present (VB‑Cable, BlackHole, Stereo Mix, loopback)
+        const virtualRegex = /vb[- ]?cable|blackhole|stereo mix|loopback|virtual audio|cable input|vcable/i;
+        const preferred = audioIns.find(d => virtualRegex.test(d.label || ''));
+        if (preferred && !selectedDeviceId) {
+          setSelectedDeviceId(preferred.deviceId);
+          try { addToast('info', `Dispositivo virtual detectado: "${preferred.label || preferred.deviceId.slice(0,6)}" seleccionado automáticamente.`); } catch {}
+        } else if (first && !selectedDeviceId) setSelectedDeviceId(first.deviceId);
       } catch (err) {
         // ignore
       }
@@ -65,6 +76,7 @@ export default function RecorderComponent({
   } = useAppStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showAudioHelpModal, setShowAudioHelpModal] = useState(false);
 
   const handleStart = async () => {
     // If user chose microphone and hasn't passed test, show test flow first
@@ -83,6 +95,11 @@ export default function RecorderComponent({
     // Selección de fuente de audio
     let stream: MediaStream | undefined;
     try {
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+      const isFirefox = ua.includes('firefox');
+      if (isFirefox && (audioSource === 'tab' || audioSource === 'system')) {
+        addToast('info', 'Firefox limita la captura de audio de pestañas/sistema. Intentaremos un fallback automático.');
+      }
       if (audioSource === 'mic') {
         // Micrófono normal. If user selected a specific device, prefer it.
         const constraints: MediaStreamConstraints = {
@@ -94,19 +111,47 @@ export default function RecorderComponent({
           },
         };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } else if (audioSource === 'tab') {
-        // Audio de pestaña (requiere permisos)
-        // getDisplayMedia permite al usuario elegir la pestaña en el diálogo del navegador
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          audio: true,
-          video: false,
-        });
-      } else if (audioSource === 'system') {
-        // Audio del sistema (algunos navegadores lo permiten vía getDisplayMedia)
-        stream = await navigator.mediaDevices.getDisplayMedia({
-          audio: { echoCancellation: false },
-          video: false,
-        });
+      } else if (audioSource === 'tab' || audioSource === 'system') {
+        // Many browsers require video:true for the display picker to allow selecting a tab/window
+        // and to enable the "share audio" option. Request both and then strip video tracks.
+        try {
+          const disp = await navigator.mediaDevices.getDisplayMedia({ audio: true as any, video: true as any });
+          const audioTracks = disp.getAudioTracks();
+          const videoTracks = disp.getVideoTracks();
+          // Remove video tracks before handing off to recorder to avoid capturing camera
+          videoTracks.forEach(t => t.stop());
+          // If audio tracks found, use it
+          if (audioTracks.length > 0) {
+            stream = disp;
+          } else {
+            // No audio tracks — try an automatic fallback to getUserMedia (loopback or system virtual device)
+            disp.getTracks().forEach(t => t.stop());
+            addToast('info', 'No se detectó audio en la fuente compartida. Intentando fallback automático (micrófono del sistema)...');
+            try {
+              const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              const micTracks = micStream.getAudioTracks();
+              if (micTracks.length > 0) {
+                stream = micStream;
+                addToast('success', 'Fallback: usando micrófono por defecto (puedes usar un cable virtual para capturar audio del sistema).');
+              } else {
+                micStream.getTracks().forEach(t => t.stop());
+              }
+            } catch (e) {
+              // ignore — will show help modal below
+            }
+          }
+          // If still no stream, show help modal
+          if (!stream) {
+            addToast('error', 'No se pudo obtener audio de la fuente compartida. Abriendo guía de solución.');
+            setShowAudioHelpModal(true);
+            return;
+          }
+        } catch (e) {
+          // If user cancels the display picker or browser blocks it
+          addToast('error', 'No se pudo abrir el selector de pantalla/pestaña. Revisa los permisos o prueba con Chrome/Edge/Brave.');
+          setShowAudioHelpModal(true);
+          return;
+        }
       }
     } catch (err) {
       addToast('error', 'No se pudo acceder a la fuente de audio seleccionada. Asegúrate de permitir el acceso en el diálogo del navegador.');
@@ -199,6 +244,22 @@ export default function RecorderComponent({
     }
   };
 
+  // Allow external UI to stop recording via a window event (used by persistent recording pill)
+  useEffect(() => {
+    const onExternalStop = async () => {
+      if (isRecording) {
+        try {
+          await handleStop();
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('app-stop-recording', onExternalStop as EventListener);
+    return () => window.removeEventListener('app-stop-recording', onExternalStop as EventListener);
+  }, [isRecording]);
+
   // Show test phase if not passed
   if (showTestPhase && !testPassed) {
     return (
@@ -217,6 +278,28 @@ export default function RecorderComponent({
 
   return (
     <div className="flex-1 overflow-y-auto bg-transparent">
+      {showAudioHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl bg-white rounded-lg p-6 shadow-lg">
+            <h3 className="text-lg font-semibold mb-3">No se pudo capturar audio</h3>
+            <p className="text-sm text-slate-700 mb-4">Algunos navegadores (p. ej. Firefox) no permiten capturar audio de pestañas/sistema directamente. Puedes usar una de las opciones automáticas o seguir la guía rápida:</p>
+            <ul className="list-disc pl-5 text-sm text-slate-700 mb-4">
+              <li>Usar Chrome/Edge/Brave y marcar "Compartir audio" cuando compartas la pestaña/ventana.</li>
+              <li>Instalar un cable de audio virtual (Windows: VB-Cable, macOS: BlackHole) y seleccionarlo como micrófono en la app.</li>
+              <li>Usar un dispositivo físico de loopback si lo tienes.</li>
+            </ul>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => {
+                const text = `Guía rápida:\n\n1) Si usas Firefox: instala VB-Cable (Windows) o BlackHole (macOS) y configúralo como dispositivo de entrada.\n2) Reinicia el navegador y selecciona ese dispositivo en la opción "Seleccionar micrófono".\n3) Para captura de pestaña en Chrome/Edge/Brave, al compartir, marca 'Compartir audio'.`;
+                try { navigator.clipboard.writeText(text); addToast('success','Instrucciones copiadas'); } catch { addToast('error','No se pudo copiar'); }
+              }} className="px-3 py-2 border rounded">Copiar instrucciones</button>
+              <button onClick={() => { window.open('https://www.vb-audio.com/Cable/', '_blank'); }} className="px-3 py-2 border rounded">VB-Cable (Windows)</button>
+              <button onClick={() => { window.open('https://github.com/ExistentialAudio/BlackHole', '_blank'); }} className="px-3 py-2 border rounded">BlackHole (macOS)</button>
+              <button onClick={() => setShowAudioHelpModal(false)} className="px-3 py-2 bg-slate-900 text-white rounded">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showTestPhase && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <TestPhase
@@ -261,6 +344,15 @@ export default function RecorderComponent({
                   <option value="tab">Audio de pestaña</option>
                   <option value="system">Audio del sistema</option>
                 </select>
+
+                {(audioSource === 'tab' || audioSource === 'system') && (isFirefox || isSafari) && (
+                  <div className="mt-2 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+                    Nota: {isFirefox ? 'Firefox' : 'Safari'} limita la captura directa de audio de pestañas/sistema. Para grabar audio del PC o de una pestaña, usa <strong>Chrome</strong>, <strong>Edge</strong> o <strong>Brave</strong>, o instala un cable de audio virtual (VB‑Cable / BlackHole) y selecciónalo como micrófono.
+                    <div className="mt-2 flex gap-2">
+                      <button onClick={() => setShowAudioHelpModal(true)} className="px-3 py-1 bg-white border rounded">Ver guía</button>
+                    </div>
+                  </div>
+                )}
 
                 {audioSource === 'mic' && (
                   <div className="mt-2">

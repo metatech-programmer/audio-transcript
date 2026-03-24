@@ -231,15 +231,40 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={async () => { try { await navigator.clipboard.writeText(summaryData.executiveSummary || ''); addToast('success','Resumen copiado'); } catch { addToast('error','No se pudo copiar'); } }} className="px-3 py-2 bg-white rounded-md border"> <Copy size={14} /> Copiar</button>
+                                    <button onClick={async () => {
+                                      try {
+                                        const parsed = parseJsonFromString(String(summaryData.executiveSummary || ''));
+                                        const toCopy = parsed ? JSON.stringify(parsed, null, 2) : String(summaryData.executiveSummary || '');
+                                        await navigator.clipboard.writeText(toCopy);
+                                        addToast('success','Resumen copiado');
+                                      } catch {
+                                        addToast('error','No se pudo copiar');
+                                      }
+                                    }} className="px-3 py-2 bg-white rounded-md border"> <Copy size={14} /> Copiar</button>
                   </div>
                 </div>
 
-                <div className="prose max-w-none text-slate-800">
-                  {sanitizeSummaryText(summaryData.executiveSummary).split(/\n\n+/).filter(Boolean).map((p, idx) => (
-                    <p key={idx} className={idx === 0 ? 'text-lg font-medium' : ''}>{idx === 0 ? p : p}</p>
-                  ))}
-                </div>
+                                <div className="prose max-w-none text-slate-800">
+                                  {(() => {
+                                    const raw = String(summaryData.executiveSummary || '');
+                                    const parsed = parseJsonFromString(raw);
+                                    if (parsed) {
+                                      // If parsed contains a human-friendly executiveSummary field, show it.
+                                      if (parsed.executiveSummary && typeof parsed.executiveSummary === 'string') {
+                                        return sanitizeSummaryText(parsed.executiveSummary).split(/\n\n+/).filter(Boolean).map((p: string, idx: number) => (
+                                          <p key={idx} className={idx === 0 ? 'text-lg font-medium' : ''}>{p}</p>
+                                        ));
+                                      }
+                                      // Otherwise show prettified JSON for inspection
+                                      return <pre className="bg-slate-50 p-3 rounded mt-2 text-xs whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>;
+                                    }
+
+                                    // Fallback to plain text paragraphs
+                                    return sanitizeSummaryText(raw).split(/\n\n+/).filter(Boolean).map((p: string, idx: number) => (
+                                      <p key={idx} className={idx === 0 ? 'text-lg font-medium' : ''}>{p}</p>
+                                    ));
+                                  })()}
+                                </div>
               </section>
 
               {/* Key Points */}
@@ -389,11 +414,26 @@ function normalizeSummaryForRender(summary: unknown) {
     source = summary as Record<string, unknown>;
   }
 
-  const extractedSrc = source.summary ? (source.summary as Record<string, unknown>) : source;
-  const executiveSummary = toText(extractedSrc.executiveSummary || extractedSrc.resumen || extractedSrc.summary || '');
-  const keyPoints = toList(extractedSrc.keyPoints || extractedSrc.puntosClave || extractedSrc.puntos_clave || []);
-  const lectureNotes = toText(extractedSrc.lectureNotes || extractedSrc.notas || extractedSrc.notasDeClase || '');
-  const actionableInsights = toList(extractedSrc.actionableInsights || extractedSrc.conceptosAplicables || extractedSrc.insights || []);
+  let extractedSrc = source.summary ? (source.summary as Record<string, unknown>) : source;
+  let executiveSummary = toText(extractedSrc.executiveSummary || extractedSrc.resumen || extractedSrc.summary || '');
+  let keyPoints = toList(extractedSrc.keyPoints || extractedSrc.puntosClave || extractedSrc.puntos_clave || []);
+  let lectureNotes = toText(extractedSrc.lectureNotes || extractedSrc.notas || extractedSrc.notasDeClase || '');
+  let actionableInsights = toList(extractedSrc.actionableInsights || extractedSrc.conceptosAplicables || extractedSrc.insights || []);
+
+  // If the LLM put the structured JSON inside the executiveSummary as a code block or string,
+  // try to parse it and merge into extractedSrc so metadata and other fields are properly populated.
+  try {
+    const inner = parseJsonFromString(executiveSummary);
+    if (inner && typeof inner === 'object') {
+      extractedSrc = { ...extractedSrc, ...inner } as Record<string, unknown>;
+      executiveSummary = toText(extractedSrc.executiveSummary || extractedSrc.resumen || extractedSrc.summary || '');
+      keyPoints = toList(extractedSrc.keyPoints || extractedSrc.puntosClave || extractedSrc.puntos_clave || []);
+      lectureNotes = toText(extractedSrc.lectureNotes || extractedSrc.notas || extractedSrc.notasDeClase || '');
+      actionableInsights = toList(extractedSrc.actionableInsights || extractedSrc.conceptosAplicables || extractedSrc.insights || []);
+    }
+  } catch (e) {
+    // ignore parse errors and keep original values
+  }
 
   if (!executiveSummary && keyPoints.length === 0 && !lectureNotes && actionableInsights.length === 0) {
     if (typeof summary === 'string') return { executiveSummary: summary, keyPoints: [], lectureNotes: '', actionableInsights: [] };
@@ -509,4 +549,24 @@ function parseLectureNotes(text: string) {
   });
   if (currentContent.length > 0) blocks.push({ title: currentTitle, content: currentContent.join('\n\n') });
   return blocks.filter(b => b.content.trim() !== '');
+}
+
+function parseJsonFromString(raw: string): any | null {
+  if (!raw || !raw.trim()) return null;
+  const s = raw.trim();
+  // try fenced code block first
+  const codeBlockMatch = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = codeBlockMatch ? codeBlockMatch[1] : (s.match(/\{[\s\S]*\}/)?.[0] || null);
+  if (!candidate) return null;
+  try {
+    return JSON.parse(fixJsonString(candidate));
+  } catch (e) {
+    try {
+      // last resort: try to unescape quotes and parse
+      const unescaped = candidate.replace(/\\"/g, '"').replace(/\\n/g, '\n');
+      return JSON.parse(unescaped);
+    } catch {
+      return null;
+    }
+  }
 }

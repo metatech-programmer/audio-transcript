@@ -407,7 +407,26 @@ export function useSessions() {
       const response = await fetch('/api/sessions');
       if (!response.ok) throw new Error('Failed to fetch sessions');
       const data = await response.json();
-      setSessions(data.sessions || []);
+      const apiSessions = data.sessions || [];
+      // If API returns nothing (in-memory server), try client-side fallback
+      if ((!apiSessions || apiSessions.length === 0) && typeof window !== 'undefined') {
+        try {
+          const stored = window.localStorage.getItem('local_sessions');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+              setSessions(parsed);
+              setLoading(false);
+              setError(null);
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to parse local_sessions', e);
+        }
+      }
+
+      setSessions(apiSessions);
       setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -431,6 +450,15 @@ export function useSessions() {
       const data = await response.json();
       addSession(data.session);
       setCurrentSession(data.session);
+      // Mirror to localStorage as fallback for persistence across reloads
+      try {
+        const existing = typeof window !== 'undefined' ? window.localStorage.getItem('local_sessions') : null;
+        const list = existing ? JSON.parse(existing) : [];
+        list.unshift(data.session);
+        if (typeof window !== 'undefined') window.localStorage.setItem('local_sessions', JSON.stringify(list));
+      } catch (e) {
+        console.warn('Failed to write local_sessions', e);
+      }
       setError(null);
       return data.session;
     } catch (err) {
@@ -454,6 +482,22 @@ export function useSessions() {
       const data = await response.json();
       updateSession(data.session);
       setCurrentSession(data.session);
+      // Update localStorage fallback
+      try {
+        if (typeof window !== 'undefined') {
+          const existing = window.localStorage.getItem('local_sessions');
+          if (existing) {
+            const list = JSON.parse(existing) as any[];
+            const idx = list.findIndex((s) => s.id === data.session.id);
+            if (idx !== -1) {
+              list[idx] = data.session;
+              window.localStorage.setItem('local_sessions', JSON.stringify(list));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to sync updated session to local_sessions', e);
+      }
       setError(null);
       return data.session;
     } catch (err) {
@@ -476,6 +520,19 @@ export function useSessions() {
       setSessions(sessions.filter((s) => s.id !== sessionId));
       if (currentSession?.id === sessionId) {
         setCurrentSession(null);
+      }
+      // Remove from localStorage fallback
+      try {
+        if (typeof window !== 'undefined') {
+          const existing = window.localStorage.getItem('local_sessions');
+          if (existing) {
+            const list = JSON.parse(existing) as any[];
+            const filtered = list.filter((s) => s.id !== sessionId);
+            window.localStorage.setItem('local_sessions', JSON.stringify(filtered));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to remove session from local_sessions', e);
       }
       setError(null);
     } catch (err) {

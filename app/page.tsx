@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Mic, Eye, Target, PlusCircle, AlertCircle } from 'lucide-react';
+import { BookOpen, Mic, Eye, Target, PlusCircle, AlertCircle, Square } from 'lucide-react';
+import { formatDuration } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { useSessions } from '@/hooks/useRecorder';
 import SessionHistory from '@/components/SessionHistory';
@@ -26,6 +27,8 @@ export default function Home() {
     deleteSessionData,
     setCurrentSession,
   } = useSessions();
+
+  const { recorder } = useAppStore();
 
   useEffect(() => {
     setMounted(true);
@@ -115,11 +118,10 @@ export default function Home() {
                 aria-pressed={view === 'session'}
                 aria-current={view === 'session' && currentSession ? 'true' : undefined}
                 onClick={() => setView('session')}
-                disabled={!mounted ? undefined : !currentSession}
                 className={`min-w-[88px] px-4 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                  view === 'session' && currentSession
+                  view === 'session'
                     ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <Eye size={16} />
@@ -187,6 +189,20 @@ export default function Home() {
         )}
       </div>
       <ToastContainer />
+      {recorder?.isRecording && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white shadow-lg focus:outline-none">
+            <button onClick={() => setView('recorder')} className="flex items-center gap-2" aria-label="Return to recorder">
+              <span className="w-2 h-2 rounded-full bg-white/90 block" />
+              <span className="font-medium">Recording</span>
+              <span className="text-sm opacity-90">{formatDuration(recorder.duration)}</span>
+            </button>
+            <button onClick={() => { window.dispatchEvent(new Event('app-stop-recording')); }} title="Stop recording" className="ml-2 p-2 rounded-full bg-white/20 hover:bg-white/30">
+              <Square size={14} className="text-white" />
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
