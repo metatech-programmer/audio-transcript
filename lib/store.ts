@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Session, RecorderState } from './types';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 interface ToastMessage {
   id: string;

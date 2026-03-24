@@ -32,10 +32,15 @@ export function useAudioRecorder() {
   const { setRecording, setDuration, setRecorderError, setTranscript, recorder } =
     useAppStore();
 
+
+  /**
+   * Inicia la grabación, permitiendo pasar un stream personalizado (mic, tab, system)
+   */
   const startRecording = async (
     options?: {
       engineMode?: 'auto' | 'browser' | 'api';
       dialect?: string;
+      stream?: MediaStream;
     }
   ) => {
     try {
@@ -68,13 +73,19 @@ export function useAudioRecorder() {
 
       setLiveEngine(isBrowserLiveRef.current ? 'browser' : 'api');
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      // Permitir pasar un stream personalizado (mic, tab, system)
+      let stream: MediaStream;
+      if (options?.stream) {
+        stream = options.stream;
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      }
 
       streamRef.current = stream;
       const mediaRecorder = new MediaRecorder(stream, {

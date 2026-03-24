@@ -21,6 +21,8 @@ export default function RecorderComponent({
 }: RecorderComponentProps) {
   const [showTestPhase, setShowTestPhase] = useState(true);
   const [testPassed, setTestPassed] = useState(false);
+  // Nueva opción: fuente de audio
+  const [audioSource, setAudioSource] = useState<'mic' | 'tab' | 'system'>('mic');
 
   const {
     startRecording,
@@ -48,9 +50,40 @@ export default function RecorderComponent({
 
   const handleStart = async () => {
     resetRecorder();
+    // Selección de fuente de audio
+    let stream: MediaStream | undefined;
+    try {
+      if (audioSource === 'mic') {
+        // Micrófono normal
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } else if (audioSource === 'tab') {
+        // Audio de pestaña (requiere permisos)
+        // getDisplayMedia puede capturar audio de pestaña si el navegador lo soporta
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          audio: true,
+          video: false,
+        });
+      } else if (audioSource === 'system') {
+        // Audio del sistema (algunos navegadores lo permiten vía getDisplayMedia)
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          audio: { echoCancellation: false },
+          video: false,
+        });
+      }
+    } catch (err) {
+      addToast('error', 'No se pudo acceder a la fuente de audio seleccionada.');
+      return;
+    }
     await startRecording({
       engineMode: 'auto',
       dialect: selectedDialect,
+      stream,
     });
   };
 
@@ -77,6 +110,7 @@ export default function RecorderComponent({
       setTranscript(transcript.trim());
 
       let summary: Summary | null = null;
+      let summaryError = null;
 
       // Auto-summarize if transcript is long enough
       if (transcript.length > 100) {
@@ -84,6 +118,7 @@ export default function RecorderComponent({
         try {
           summary = await summarize(transcript.trim(), recorder.language);
         } catch (err) {
+          summaryError = err instanceof Error ? err.message : 'Auto-summarize failed';
           console.error('Auto-summarize failed:', err);
         }
       }
@@ -103,14 +138,18 @@ export default function RecorderComponent({
           duration,
           language: recorder.language,
           transcript: transcript.trim(),
-          summary,
+          summary: summary || undefined,
           tags: [],
           createdAt: now,
           updatedAt: now,
         });
 
         onSessionSaved?.(savedSession);
-        addToast('success', 'Sesión guardada correctamente.');
+        if (summary) {
+          addToast('success', 'Sesión guardada correctamente (con resumen).');
+        } else {
+          addToast('warning', `Sesión guardada solo con transcripción.\n${summaryError ? 'No se pudo generar el resumen: ' + summaryError : ''}`);
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Processing failed';
@@ -156,7 +195,26 @@ export default function RecorderComponent({
             </div>
 
             {/* Settings Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+
+              {/* Fuente de audio */}
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+                  Fuente de audio
+                </label>
+                <select
+                  value={audioSource}
+                  onChange={e => setAudioSource(e.target.value as 'mic' | 'tab' | 'system')}
+                  disabled={isRecording}
+                  className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  <option value="mic">Micrófono</option>
+                  <option value="tab">Audio de pestaña</option>
+                  <option value="system">Audio del sistema</option>
+                </select>
+              </div>
+
               {/* Language */}
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
@@ -266,7 +324,14 @@ export default function RecorderComponent({
 
             {/* Info Box */}
             <div className="text-center text-[12px] text-slate-500 mt-2">
-                 Speak clearly for best accuracy. Summary generation is automatic.
+              Speak clearly for best accuracy. Summary generation is automatic.<br />
+              <span className="block mt-2 text-orange-500 font-semibold">
+                ⚠️ Para grabaciones largas (&gt;2 horas):
+                <br />
+                - Recomendado grabar en segmentos de 1-2 horas para mayor seguridad.<br />
+                - Si la transcripción es muy larga, puede que el resumen falle, pero la transcripción completa siempre se guardará.<br />
+                - El procesamiento de grabaciones muy largas puede tardar varios minutos.
+              </span>
             </div>
           </div>
         </div>

@@ -124,63 +124,59 @@ export async function POST(request: NextRequest) {
 
 function getChunkPrompt(chunk: string, language: string): string {
   if (language === 'es') {
-    return `Analiza este fragmento de una clase y genera un resumen en puntos clave, manteniendo todos los conceptos, definiciones y ejemplos importantes:\n\n${chunk}`;
+    return `Eres un experto en tomar notas universitarias. Analiza este fragmento de clase y extrae:\n- Conceptos clave\n- Definiciones\n- Ejemplos\n- Explicaciones\n- Conexiones entre temas\nResponde solo con puntos clave, sin texto adicional.\n\n${chunk}`;
   }
-  return `Analyze this lecture fragment and create a summary with key point bullets, keeping all important concepts, definitions and examples:\n\n${chunk}`;
+  return `You are an expert university note-taker. Analyze this lecture fragment and extract:\n- Key concepts\n- Definitions\n- Examples\n- Explanations\n- Connections between topics\nRespond only with key point bullets, no extra text.\n\n${chunk}`;
 }
 
 function getFinalPrompt(consolidatedInput: string, language: string): string {
   if (language === 'es') {
-    return `Eres un experto en resumir clases universitarias. Tu objetivo es generar notas detalladas y bien estructuradas, como si fueras un estudiante excelente tomando notas en un cuaderno.
+    return `Eres un experto en resumir clases universitarias. Tu objetivo es generar notas profundas, claras y bien estructuradas, como si fueras el mejor estudiante de la clase.
 
-Analiza la siguiente transcripción de una clase completa (que puede durar 1-3 horas) y proporciona un resumen estructurado en formato JSON.
+Analiza la siguiente transcripción de una clase completa (puede durar varias horas) y responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional) en este formato exacto:
+{
+  "executiveSummary": "Resumen ejecutivo de 2-4 oraciones que capture la esencia completa de la clase, incluyendo contexto, propósito y conclusiones principales.",
+  "keyPoints": [
+    "Punto 1: Concepto u idea principal con detalles y ejemplos",
+    "Punto 2: Concepto u idea principal con detalles y ejemplos",
+    "Punto 3: Concepto u idea principal con detalles y ejemplos",
+    "Punto 4: Concepto u idea principal con detalles y ejemplos",
+    "Punto 5: Concepto u idea principal con detalles y ejemplos"
+  ],
+  "lectureNotes": "Notas detalladas y estructuradas como un cuaderno bien organizado. Incluye:\n- TEMAS PRINCIPALES: Títulos y subtemas\n- DEFINICIONES: Conceptos clave y sus definiciones\n- EJEMPLOS: Ejemplos específicos\n- EXPLICACIONES: Detalles técnicos y explicaciones profundas\n- ESTRUCTURA LÓGICA: Cómo conectan los conceptos\n- CONEXIONES: Relaciones entre temas\n- RESUMENES PARCIALES: Si la clase es larga, incluye resúmenes por sección\n\nFormato como texto estructurado con saltos de línea, sin viñetas. Sé lo más detallado y claro posible.",
+  "actionableInsights": [
+    "Insight 1: Aplicación práctica, consejo o concepto clave para recordar",
+    "Insight 2: Aplicación práctica, consejo o concepto clave para recordar",
+    "Insight 3: Aplicación práctica, consejo o concepto clave para recordar"
+  ]
+}
 
 TRANSCRIPCIÓN:
-${consolidatedInput}
-
-Responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional) en este formato exacto:
-{
-  "executiveSummary": "Resumen ejecutivo de 2-3 oraciones que capture la esencia completa de la clase",
-  "keyPoints": [
-    "Punto 1: Concepto u idea principal con detalles",
-    "Punto 2: Concepto u idea principal con detalles",
-    "Punto 3: Concepto u idea principal con detalles",
-    "Punto 4: Concepto u idea principal con detalles",
-    "Punto 5: Concepto u idea principal con detalles"
-  ],
-  "lectureNotes": "Notas detalladas y estructuradas como un cuaderno bien organizado. Incluye:\n- TEMAS PRINCIPALES: Títulos y subtemas principales\n- DEFINICIONES: Conceptos clave y sus definiciones\n- EJEMPLOS: Ejemplos específicos mencionados\n- EXPLICACIONES: Detalles técnicos y explicaciones profundas\n- ESTRUCTURA LÓGICA: Cómo conectan los conceptos\n- CONEXIONES: Relaciones entre temas\n\nFormat como texto estruturado con saltos de línea, sin viñetas. Sé lo más detallado posible.",
-  "actionableInsights": [
-    "Insight 1: Aplicación práctica o concepto a recordar",
-    "Insight 2: Aplicación práctica o concepto a recordar",
-    "Insight 3: Aplicación práctica o concepto a recordar"
-  ]
-}`;
+${consolidatedInput}`;
   }
 
-  return `You are an expert in summarizing university lectures. Your goal is to generate detailed and well-structured notes, as if you were an excellent student taking notes in a notebook.
+  return `You are an expert in summarizing university lectures. Your goal is to generate deep, clear and well-structured notes, as if you were the best student in the class.
 
-Analyze the following transcript of a complete lecture (which can last 1-3 hours) and provide a structured summary in JSON format.
+Analyze the following transcript of a complete lecture (may last several hours) and respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
+{
+  "executiveSummary": "Executive summary of 2-4 sentences that captures the complete essence of the lecture, including context, purpose and main conclusions.",
+  "keyPoints": [
+    "Point 1: Main concept or idea with details and examples",
+    "Point 2: Main concept or idea with details and examples",
+    "Point 3: Main concept or idea with details and examples",
+    "Point 4: Main concept or idea with details and examples",
+    "Point 5: Main concept or idea with details and examples"
+  ],
+  "lectureNotes": "Detailed and structured notes like a well-organized notebook. Include:\n- MAIN TOPICS: Main titles and subtopics\n- DEFINITIONS: Key concepts and their definitions\n- EXAMPLES: Specific examples\n- EXPLANATIONS: Technical details and deep explanations\n- LOGICAL STRUCTURE: How concepts connect\n- CONNECTIONS: Relationships between topics\n- PARTIAL SUMMARIES: If the lecture is long, include summaries by section\n\nFormat as structured text with line breaks, without bullet points. Be as detailed and clear as possible.",
+  "actionableInsights": [
+    "Insight 1: Practical application, advice or key concept to remember",
+    "Insight 2: Practical application, advice or key concept to remember",
+    "Insight 3: Practical application, advice or key concept to remember"
+  ]
+}
 
 TRANSCRIPT:
-${consolidatedInput}
-
-Respond ONLY with valid JSON (no markdown, no extra text) in this exact format:
-{
-  "executiveSummary": "Executive summary of 2-3 sentences that captures the complete essence of the lecture",
-  "keyPoints": [
-    "Point 1: Main concept or idea with details",
-    "Point 2: Main concept or idea with details",
-    "Point 3: Main concept or idea with details",
-    "Point 4: Main concept or idea with details",
-    "Point 5: Main concept or idea with details"
-  ],
-  "lectureNotes": "Detailed and structured notes like a well-organized notebook. Include:\n- MAIN TOPICS: Main titles and subtopics mentioned\n- DEFINITIONS: Key concepts and their definitions\n- EXAMPLES: Specific examples provided\n- EXPLANATIONS: Technical details and deep explanations\n- LOGICAL STRUCTURE: How concepts connect\n- CONNECTIONS: Relationships between topics\n\nFormat as structured text with line breaks, without bullet points. Be as detailed as possible.",
-  "actionableInsights": [
-    "Insight 1: Practical application or key concept to remember",
-    "Insight 2: Practical application or key concept to remember",
-    "Insight 3: Practical application or key concept to remember"
-  ]
-}`;
+${consolidatedInput}`;
 }
 
 function normalizeSummary(input: unknown) {
