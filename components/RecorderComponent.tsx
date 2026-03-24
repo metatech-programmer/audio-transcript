@@ -515,44 +515,45 @@ export default function RecorderComponent({
                 )}
               </div>
 
-              {/* Language */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Globe size={14} className="text-slate-400" /> Idioma
-                </label>
-                <select
-                  value={recorder.language}
-                  onChange={(e) => setLanguage(e.target.value as 'en' | 'es')}
-                  disabled={isRecording}
-                  className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
-                >
-                  <option value="es">Spanish</option>
-                  <option value="en">English</option>
-                </select>
+              {/* Language + Dialect */}
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Globe size={14} className="text-slate-400" /> Idioma
+                  </label>
+                  <select
+                    value={recorder.language}
+                    onChange={(e) => setLanguage(e.target.value as 'en' | 'es')}
+                    disabled={isRecording}
+                    className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    <option value="es">Spanish</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 12A10 10 0 0 1 12 2z"></path></svg>
+                    Dialect
+                  </label>
+                  <select
+                    value={selectedDialect}
+                    onChange={(e) => setSelectedDialect(e.target.value)}
+                    disabled={isRecording}
+                    className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    <option value="es-ES">España</option>
+                    <option value="es-MX">México</option>
+                    <option value="en-US">US English</option>
+                    <option value="en-GB">UK English</option>
+                  </select>
+                </div>
               </div>
 
               {/* Subject */}
               <div className="space-y-1.5">
                 <SubjectSelector value={selectedSubject} onChange={(v) => setSelectedSubject(v)} />
-              </div>
-
-              {/* Dialect */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 12A10 10 0 0 1 12 2z"></path></svg> 
-                  Dialect
-                </label>
-                <select
-                  value={selectedDialect}
-                  onChange={(e) => setSelectedDialect(e.target.value)}
-                  disabled={isRecording}
-                  className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
-                >
-                  <option value="es-ES">España</option>
-                  <option value="es-MX">México</option>
-                  <option value="en-US">US English</option>
-                  <option value="en-GB">UK English</option>
-                </select>
               </div>
             </div>
 
