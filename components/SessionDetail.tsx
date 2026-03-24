@@ -124,6 +124,100 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
           {/* Summary & Notes */}
           {summaryData && (
             <div className="space-y-10">
+              {/* Metadata */}
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen size={18} /> Identificación y Metadatos</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-slate-700">
+                  <div><strong>Asignatura:</strong> {String((summaryData.metadata && (summaryData.metadata as any).subject) || '—')}</div>
+                  <div><strong>Unidad:</strong> {String((summaryData.metadata && (summaryData.metadata as any).unit) || '—')}</div>
+                  <div><strong>Sesión:</strong> {String((summaryData.metadata && (summaryData.metadata as any).sessionNumber) || '—')}</div>
+                  <div className="sm:col-span-3"><strong>Eje temático:</strong> {String((summaryData.metadata && (summaryData.metadata as any).thematicAxis) || '—')}</div>
+                  <div className="sm:col-span-3"><strong>Keywords:</strong> {Array.isArray((summaryData.metadata && (summaryData.metadata as any).keywords)) ? (summaryData.metadata as any).keywords.join(', ') : String((summaryData.metadata && (summaryData.metadata as any).keywords) || '—')}</div>
+                </div>
+              </section>
+
+              {/* Learning Outcomes */}
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><Check size={18} /> Objetivos de Aprendizaje</h3>
+                </div>
+                <div className="text-sm text-slate-700">
+                  <div className="mb-2"><strong>Competencias:</strong> {Array.isArray((summaryData.learningOutcomes && (summaryData.learningOutcomes as any).competencies)) ? (summaryData.learningOutcomes as any).competencies.join('; ') : String((summaryData.learningOutcomes && (summaryData.learningOutcomes as any).competencies) || '—')}</div>
+                  <div><strong>Problema principal:</strong> {String((summaryData.learningOutcomes && (summaryData.learningOutcomes as any).mainProblem) || '—')}</div>
+                </div>
+              </section>
+
+              {/* Theoretical Core */}
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen size={18} /> Núcleo Teórico y Estado del Arte</h3>
+                </div>
+                <div className="text-sm text-slate-700">
+                  <div className="mb-2"><strong>Conceptos:</strong> {String((summaryData.theoreticalCore && (summaryData.theoreticalCore as any).concepts) || '—')}</div>
+                  <div className="mb-2"><strong>Modelos/Estándares:</strong> {String((summaryData.theoreticalCore && (summaryData.theoreticalCore as any).modelsStandards) || '—')}</div>
+                  <div><strong>Autores referenciados:</strong> {Array.isArray((summaryData.theoreticalCore && (summaryData.theoreticalCore as any).referencedAuthors)) ? (summaryData.theoreticalCore as any).referencedAuthors.join(', ') : String((summaryData.theoreticalCore && (summaryData.theoreticalCore as any).referencedAuthors) || '—')}</div>
+                </div>
+              </section>
+
+              {/* Comparative Analysis */}
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><Lightbulb size={18} /> Análisis Comparativo y Crítico</h3>
+                </div>
+                <div className="text-sm text-slate-700">
+                  <div className="mb-2"><strong>Ventajas/Desventajas:</strong> {String((summaryData.comparativeAnalysis && (summaryData.comparativeAnalysis as any).prosCons) || '—')}</div>
+                  <div className="mb-2"><strong>Comparaciones:</strong> {String((summaryData.comparativeAnalysis && (summaryData.comparativeAnalysis as any).comparisons) || '—')}</div>
+                  <div><strong>Contexto de uso:</strong> {String((summaryData.comparativeAnalysis && (summaryData.comparativeAnalysis as any).contextOfUse) || '—')}</div>
+                </div>
+              </section>
+
+              {/* Examples */}
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><FileText size={18} /> Bloque de Ejemplos y Casos de Uso</h3>
+                </div>
+                <div className="text-sm text-slate-700">
+                  <div className="mb-2"><strong>Ejemplo Académico:</strong> {String((summaryData.examples && (summaryData.examples as any).academicExample) || '—')}</div>
+                  <div className="mb-2"><strong>Caso de Estudio:</strong> {String((summaryData.examples && (summaryData.examples as any).caseStudy) || '—')}</div>
+                  <div><strong>Anti-patrones:</strong> {String((summaryData.examples && (summaryData.examples as any).antipatterns) || '—')}</div>
+                </div>
+              </section>
+
+              {/* Technical Component */}
+              <section className="rounded-2xl border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen size={18} /> Componente Técnico / Práctico</h3>
+                </div>
+                <div className="text-sm text-slate-700">
+                  <div className="mb-2"><strong>Snippets / Código:</strong>
+                    <pre className="bg-slate-50 p-3 rounded mt-2 text-xs whitespace-pre-wrap">{String((summaryData.technicalComponent && (summaryData.technicalComponent as any).codeSnippets) || '—')}</pre>
+                  </div>
+                  <div className="mb-2"><strong>Herramientas:</strong> {Array.isArray((summaryData.technicalComponent && (summaryData.technicalComponent as any).tools)) ? (summaryData.technicalComponent as any).tools.join(', ') : String((summaryData.technicalComponent && (summaryData.technicalComponent as any).tools) || '—')}</div>
+                  <div><strong>Diagramas:</strong> {String((summaryData.technicalComponent && (summaryData.technicalComponent as any).diagrams) || '—')}</div>
+                </div>
+              </section>
+
+              {/* Debate & Interdisciplinary */}
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                  <h4 className="text-lg font-semibold mb-2">Debate y Participaciones Clave</h4>
+                  <div className="text-sm text-slate-700">
+                    <div className="mb-2"><strong>Puntos polémicos:</strong> {String((summaryData.debate && (summaryData.debate as any).controversies) || '—')}</div>
+                    <div><strong>Aportes relevantes:</strong> {String((summaryData.debate && (summaryData.debate as any).participantContributions) || '—')}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border bg-white p-4 shadow-sm">
+                  <h4 className="text-lg font-semibold mb-2">Conexión Interdisciplinar</h4>
+                  <div className="text-sm text-slate-700">
+                    <div className="mb-2"><strong>Relaciones:</strong> {String((summaryData.interdisciplinary && (summaryData.interdisciplinary as any).relations) || '—')}</div>
+                    <div><strong>Aplicación en el trabajo:</strong> {String((summaryData.interdisciplinary && (summaryData.interdisciplinary as any).workplaceApplications) || '—')}</div>
+                  </div>
+                </div>
+              </section>
+
               {/* Executive Summary */}
               <section className="relative bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl border border-amber-200 shadow-lg p-8">
                 <div className="flex items-start justify-between mb-6">
@@ -305,7 +399,62 @@ function normalizeSummaryForRender(summary: unknown) {
     if (typeof summary === 'string') return { executiveSummary: summary, keyPoints: [], lectureNotes: '', actionableInsights: [] };
   }
 
-  return { executiveSummary, keyPoints, lectureNotes, actionableInsights };
+  // extract high-complexity fields when present
+  const metadata = extractedSrc.metadata && typeof extractedSrc.metadata === 'object' ? (extractedSrc.metadata as Record<string, unknown>) : {
+    subject: toText((extractedSrc as any).subject || ''),
+    unit: toText((extractedSrc as any).unit || ''),
+    sessionNumber: toText((extractedSrc as any).sessionNumber || ''),
+    thematicAxis: toText((extractedSrc as any).thematicAxis || ''),
+    keywords: toList((extractedSrc as any).keywords || []),
+  };
+
+  const learningOutcomes = {
+    competencies: toList((extractedSrc.learningOutcomes && (extractedSrc.learningOutcomes as any).competencies) || (extractedSrc as any).competencies || []),
+    mainProblem: toText((extractedSrc.learningOutcomes && (extractedSrc.learningOutcomes as any).mainProblem) || (extractedSrc as any).mainProblem || ''),
+  };
+
+  const theoreticalCore = {
+    concepts: toText((extractedSrc.theoreticalCore && (extractedSrc.theoreticalCore as any).concepts) || (extractedSrc as any).concepts || ''),
+    modelsStandards: toText((extractedSrc.theoreticalCore && (extractedSrc.theoreticalCore as any).modelsStandards) || (extractedSrc as any).modelsStandards || ''),
+    referencedAuthors: toList((extractedSrc.theoreticalCore && (extractedSrc.theoreticalCore as any).referencedAuthors) || (extractedSrc as any).referencedAuthors || []),
+  };
+
+  const comparativeAnalysis = {
+    prosCons: toText((extractedSrc.comparativeAnalysis && (extractedSrc.comparativeAnalysis as any).prosCons) || (extractedSrc as any).prosCons || ''),
+    comparisons: toText((extractedSrc.comparativeAnalysis && (extractedSrc.comparativeAnalysis as any).comparisons) || (extractedSrc as any).comparisons || ''),
+    contextOfUse: toText((extractedSrc.comparativeAnalysis && (extractedSrc.comparativeAnalysis as any).contextOfUse) || (extractedSrc as any).contextOfUse || ''),
+  };
+
+  const examples = {
+    academicExample: toText((extractedSrc.examples && (extractedSrc.examples as any).academicExample) || (extractedSrc as any).academicExample || ''),
+    caseStudy: toText((extractedSrc.examples && (extractedSrc.examples as any).caseStudy) || (extractedSrc as any).caseStudy || ''),
+    antipatterns: toText((extractedSrc.examples && (extractedSrc.examples as any).antipatterns) || (extractedSrc as any).antipatterns || ''),
+  };
+
+  const technicalComponent = {
+    codeSnippets: toText((extractedSrc.technicalComponent && (extractedSrc.technicalComponent as any).codeSnippets) || (extractedSrc as any).codeSnippets || ''),
+    tools: toList((extractedSrc.technicalComponent && (extractedSrc.technicalComponent as any).tools) || (extractedSrc as any).tools || []),
+    diagrams: toText((extractedSrc.technicalComponent && (extractedSrc.technicalComponent as any).diagrams) || (extractedSrc as any).diagrams || ''),
+  };
+
+  const debate = {
+    controversies: toText((extractedSrc.debate && (extractedSrc.debate as any).controversies) || (extractedSrc as any).controversies || ''),
+    participantContributions: toText((extractedSrc.debate && (extractedSrc.debate as any).participantContributions) || (extractedSrc as any).participantContributions || ''),
+  };
+
+  const interdisciplinary = {
+    relations: toText((extractedSrc.interdisciplinary && (extractedSrc.interdisciplinary as any).relations) || (extractedSrc as any).relations || ''),
+    workplaceApplications: toText((extractedSrc.interdisciplinary && (extractedSrc.interdisciplinary as any).workplaceApplications) || (extractedSrc as any).workplaceApplications || ''),
+  };
+
+  const keyTakeaways = toList(extractedSrc.keyTakeaways || (extractedSrc as any).keyTakeaways || []);
+
+  const references = {
+    readings: toList((extractedSrc.references && (extractedSrc.references as any).readings) || (extractedSrc as any).readings || []),
+    questionsForStudy: toList((extractedSrc.references && (extractedSrc.references as any).questionsForStudy) || (extractedSrc as any).questionsForStudy || []),
+  };
+
+  return { executiveSummary, keyPoints, lectureNotes, actionableInsights, metadata, learningOutcomes, theoreticalCore, comparativeAnalysis, examples, technicalComponent, debate, interdisciplinary, keyTakeaways, references };
 }
 
 function toText(value: unknown): string {
