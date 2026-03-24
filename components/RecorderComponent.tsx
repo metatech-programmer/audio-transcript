@@ -147,44 +147,32 @@ export default function RecorderComponent({
       } else if (audioSource === 'tab' || audioSource === 'system') {
         // Many browsers require video:true for the display picker to allow selecting a tab/window
         // and to enable the "share audio" option. Request both and then strip video tracks.
-        try {
-          const disp = await navigator.mediaDevices.getDisplayMedia({ audio: true as any, video: true as any });
-          const audioTracks = disp.getAudioTracks();
-          const videoTracks = disp.getVideoTracks();
-          // Remove video tracks before handing off to recorder to avoid capturing camera
-          videoTracks.forEach(t => t.stop());
-          // If audio tracks found, use it
-          if (audioTracks.length > 0) {
-            stream = disp;
-          } else {
-            // No audio tracks — try an automatic fallback to getUserMedia (loopback or system virtual device)
-            disp.getTracks().forEach(t => t.stop());
-            addToast('info', 'No se detectó audio en la fuente compartida. Intentando fallback automático (micrófono del sistema)...');
-            try {
-              const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-              const micTracks = micStream.getAudioTracks();
-              if (micTracks.length > 0) {
-                stream = micStream;
-                addToast('success', 'Fallback: usando micrófono por defecto (puedes usar un cable virtual para capturar audio del sistema).');
-              } else {
-                micStream.getTracks().forEach(t => t.stop());
-              }
-            } catch (e) {
-              // ignore — will show help modal below
+          try {
+            const disp = await navigator.mediaDevices.getDisplayMedia({ audio: true as any, video: true as any });
+            const audioTracks = disp.getAudioTracks();
+            const videoTracks = disp.getVideoTracks();
+            // Remove video tracks before handing off to recorder to avoid capturing camera
+            videoTracks.forEach(t => t.stop());
+
+            // If audio tracks found, create a new stream that contains ONLY those audio tracks
+            // This avoids accidentally including microphone tracks from elsewhere.
+            if (audioTracks.length > 0) {
+              const displayOnly = new MediaStream(audioTracks.map((t) => t));
+              stream = displayOnly;
+            } else {
+              // No audio tracks — do NOT fallback automatically to the microphone to avoid
+              // unintentionally recording the mic. Show help so the user can enable "Compartir audio".
+              disp.getTracks().forEach(t => t.stop());
+              addToast('error', 'No se detectó audio al compartir la pantalla/pestaña. Asegúrate de marcar "Compartir audio" en el diálogo del navegador.');
+              setShowAudioHelpModal(true);
+              return;
             }
-          }
-          // If still no stream, show help modal
-          if (!stream) {
-            addToast('error', 'No se pudo obtener audio de la fuente compartida. Abriendo guía de solución.');
+          } catch (e) {
+            // If user cancels the display picker or browser blocks it
+            addToast('error', 'No se pudo abrir el selector de pantalla/pestaña. Revisa los permisos o prueba con Chrome/Edge/Brave.');
             setShowAudioHelpModal(true);
             return;
           }
-        } catch (e) {
-          // If user cancels the display picker or browser blocks it
-          addToast('error', 'No se pudo abrir el selector de pantalla/pestaña. Revisa los permisos o prueba con Chrome/Edge/Brave.');
-          setShowAudioHelpModal(true);
-          return;
-        }
       }
     } catch (err) {
       addToast('error', 'No se pudo acceder a la fuente de audio seleccionada. Asegúrate de permitir el acceso en el diálogo del navegador.');
@@ -495,6 +483,10 @@ export default function RecorderComponent({
                       <button onClick={() => setShowAudioHelpModal(true)} className="px-3 py-1 bg-white border rounded">Ver guía</button>
                     </div>
                   </div>
+                )}
+
+                {(audioSource === 'tab' || audioSource === 'system') && (
+                  <div className="mt-2 text-sm text-slate-600">Nota: Solo se grabará el audio compartido (pestaña/ventana/sistema). El micrófono no será usado automáticamente para evitar interferencias.</div>
                 )}
 
                 {audioSource === 'mic' && (
