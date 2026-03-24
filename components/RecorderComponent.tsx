@@ -188,6 +188,17 @@ export default function RecorderComponent({
       return;
     }
 
+    // If a persistent host controller exists, prefer it so the recording instance stays mounted across navigation
+    try {
+      const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+      if (hostController && hostController.startRecording) {
+        await hostController.startRecording({ engineMode: 'auto', dialect: selectedDialect, stream });
+        return;
+      }
+    } catch (e) {
+      // ignore and fall back to local startRecording below
+    }
+
     await startRecording({
       engineMode: 'auto',
       dialect: selectedDialect,
@@ -205,33 +216,53 @@ export default function RecorderComponent({
   const handleStop = async () => {
     try {
       setIsProcessing(true);
-      const audioBlob = await stopRecording();
+      // prefer host controller if available (persistent recorder mounted in layout)
+      const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+      const stopFn = hostController?.stopRecording ?? stopRecording;
+      const audioBlob = await stopFn();
 
       if (!audioBlob) {
         throw new Error('No audio recorded');
       }
 
-      // Transcribe full audio after recording
-      const transcript = await transcribeAudio(audioBlob, recorder.language);
+      // Process the recording; if stopped via host controller, host may have already
+      // populated the store transcript. Pass a flag so we don't double-transcribe.
+      await processRecording(audioBlob, Boolean(hostController));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Processing failed';
+      addToast('error', `No se pudo procesar la grabación: ${message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-      if (!transcript.trim()) {
-        addToast(
-          'info',
-          'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.'
-        );
+  // Process a recorded Blob: transcribe (if needed), summarize, and save session
+  const processRecording = async (audioBlob: Blob, transcriptAlreadySet = false) => {
+    if (!audioBlob) return;
+
+    let transcriptText = recorder.transcript?.trim() || '';
+
+    try {
+      if (!transcriptAlreadySet) {
+        // Transcribe full audio after recording
+        transcriptText = await transcribeAudio(audioBlob, recorder.language);
+      }
+
+      if (!transcriptText || !transcriptText.trim()) {
+        addToast('info', 'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.');
         return;
       }
 
-      setTranscript(transcript.trim());
+      setTranscript(transcriptText.trim());
 
       let summary: Summary | null = null;
       let summaryError = null;
 
       // Auto-summarize if transcript is long enough
-      if (transcript.length > 100) {
+      if (transcriptText.length > 100) {
         setStore_Summarizing(true);
         try {
-          summary = await summarize(transcript.trim(), recorder.language);
+          summary = await summarize(transcriptText.trim(), recorder.language);
         } catch (err) {
           summaryError = err instanceof Error ? err.message : 'Auto-summarize failed';
           console.error('Auto-summarize failed:', err);
@@ -240,7 +271,7 @@ export default function RecorderComponent({
 
       if (onCreateSession) {
         const now = new Date().toISOString();
-        const titleFromTranscript = transcript
+        const titleFromTranscript = transcriptText
           .split(/\s+/)
           .slice(0, 8)
           .join(' ');
@@ -252,7 +283,7 @@ export default function RecorderComponent({
           date: now,
           duration,
           language: recorder.language,
-          transcript: transcript.trim(),
+          transcript: transcriptText.trim(),
           summary: summary || undefined,
           tags: [],
           createdAt: now,
@@ -266,11 +297,17 @@ export default function RecorderComponent({
           addToast('warning', `Sesión guardada solo con transcripción.\n${summaryError ? 'No se pudo generar el resumen: ' + summaryError : ''}`);
         }
       }
+
+      // Refresh queued items (in case host/hook didn't update count)
+      try {
+        const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+        await hostController?.refreshQueue?.();
+      } catch {}
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Processing failed';
-      addToast('error', `No se pudo procesar la grabación: ${message}`);
+      console.error('processRecording error', err);
+      throw err;
     } finally {
-      setIsProcessing(false);
+      setStore_Summarizing(false);
     }
   };
 
@@ -279,7 +316,15 @@ export default function RecorderComponent({
     const onExternalStop = async () => {
       if (isRecording) {
         try {
-          await handleStop();
+          // Use host controller if present to ensure single instance stop
+          const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+          if (hostController && hostController.stopRecording) {
+            const audioBlob = await hostController.stopRecording();
+            // Process using the existing transcript set by host
+            await processRecording(audioBlob, true);
+          } else {
+            await handleStop();
+          }
         } catch {
           // ignore
         }

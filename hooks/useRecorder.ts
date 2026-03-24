@@ -639,6 +639,12 @@ export function useAudioRecorder() {
     queuedCount,
     retrying,
     triggerRetry: processQueue,
+    refreshQueue: async () => {
+      try {
+        const items = await getAllFailedChunks();
+        setQueuedCount(items.length || 0);
+      } catch {}
+    },
   };
 }
 
