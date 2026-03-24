@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Mic, Eye, Target, PlusCircle, AlertCircle, Square } from 'lucide-react';
+import { BookOpen, Mic, Eye, Target, PlusCircle, AlertCircle, Square, Settings } from 'lucide-react';
+import SettingsModal from '@/components/SettingsModal';
 import { formatDuration } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import { useSessions } from '@/hooks/useRecorder';
@@ -13,6 +14,8 @@ import SessionDetail from '@/components/SessionDetail';
 
 export default function Home() {
   const [view, setView] = useState<'recorder' | 'session'>('recorder');
+  const [showMobileList, setShowMobileList] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [mounted, setMounted] = useState(false);
 
@@ -77,6 +80,11 @@ export default function Home() {
             <BookOpen size={18} className="text-slate-800" />
             <span className="text-[15px] font-semibold text-slate-800 tracking-tight">StudyBuddy</span>
           </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowSettings(true)} title="Ajustes" className="p-2 rounded hover:bg-slate-100">
+              <Settings size={16} />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto w-full">
           <SessionHistory
@@ -99,6 +107,9 @@ export default function Home() {
               StudyBuddy
             </h1>
             <nav role="tablist" aria-label="Main navigation" className="flex gap-2">
+              <button onClick={() => setShowSettings(true)} className="min-w-[44px] px-3 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900" title="Ajustes">
+                <Settings size={16} />
+              </button>
               <button
                 role="tab"
                 aria-pressed={view === 'recorder'}
@@ -117,7 +128,7 @@ export default function Home() {
                 role="tab"
                 aria-pressed={view === 'session'}
                 aria-current={view === 'session' && currentSession ? 'true' : undefined}
-                onClick={() => setView('session')}
+                onClick={() => { setView('session'); setShowMobileList(true); }}
                 className={`min-w-[88px] px-4 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
                   view === 'session'
                     ? 'bg-slate-800 text-white shadow-sm'
@@ -125,11 +136,32 @@ export default function Home() {
                 }`}
               >
                 <Eye size={16} />
-                View
+                Sessions
               </button>
             </nav>
           </div>
         </div>
+
+        {/* Mobile modal: show session list */}
+        {showMobileList && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4">
+            <div className="w-full max-w-md bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h3 className="text-sm font-semibold">Grabaciones</h3>
+                <button onClick={() => setShowMobileList(false)} className="px-2 py-1 text-sm">Cerrar</button>
+              </div>
+              <div className="p-3 max-h-[70vh] overflow-y-auto">
+                <SessionHistory
+                  sessions={sessions}
+                  currentSession={currentSession}
+                  onSelectSession={(s) => { setShowMobileList(false); handleSelectSession(s); }}
+                  onDeleteSession={handleDeleteSession}
+                  onCreateNew={handleCreateNew}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-white rounded-tl-xl border-l border-t border-[#EAEAEB] mt-0 lg:mt-2 lg:ml-0 lg:mr-2 lg:mb-2 shadow-sm">
@@ -189,20 +221,8 @@ export default function Home() {
         )}
       </div>
       <ToastContainer />
-      {recorder?.isRecording && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white shadow-lg focus:outline-none">
-            <button onClick={() => setView('recorder')} className="flex items-center gap-2" aria-label="Return to recorder">
-              <span className="w-2 h-2 rounded-full bg-white/90 block" />
-              <span className="font-medium">Recording</span>
-              <span className="text-sm opacity-90">{formatDuration(recorder.duration)}</span>
-            </button>
-            <button onClick={() => { window.dispatchEvent(new Event('app-stop-recording')); }} title="Stop recording" className="ml-2 p-2 rounded-full bg-white/20 hover:bg-white/30">
-              <Square size={14} className="text-white" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Persistent recorder pill rendered in layout via PersistentRecorderHost; removed duplicate large pill here. */}
+      {showSettings && <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />}
     </main>
   );
 }

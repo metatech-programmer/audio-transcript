@@ -11,6 +11,22 @@ function normalizeFilenameByMimeType(mimeType: string): string {
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
+
+    // Debug: log incoming form fields and audio metadata to help diagnose 400s
+    try {
+      const entries: Array<any> = [];
+      for (const [k, v] of formData.entries()) {
+        if (v instanceof Blob) {
+          entries.push({ key: k, kind: 'Blob', size: v.size, type: v.type });
+        } else {
+          entries.push({ key: k, kind: typeof v, value: String(v).slice(0, 200) });
+        }
+      }
+      console.debug('transcribe-chunk: received form entries ->', entries);
+    } catch (e) {
+      console.debug('transcribe-chunk: failed to inspect formData', e);
+    }
+
     const audio = formData.get('audio') as Blob | File | null;
     const sessionId = (formData.get('sessionId') as string) || null;
     const chunkIndex = formData.get('chunkIndex') as string | null;
@@ -18,7 +34,8 @@ export async function POST(request: NextRequest) {
     const language = (formData.get('language') as string) || 'es';
 
     if (!audio) {
-      return NextResponse.json({ error: 'No audio provided' }, { status: 400 });
+      // Provide received fields for debugging
+      return NextResponse.json({ error: 'No audio provided', received: 'no-audio' }, { status: 400 });
     }
 
     const mime = audio.type || 'audio/webm';
@@ -28,6 +45,18 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await audio.arrayBuffer());
+
+    // In dev, log a short base64 snippet (first 1KB) to help debug malformed uploads
+    let snippet: string | undefined = undefined;
+    try {
+      if (process.env.NODE_ENV !== 'production') {
+        const max = Math.min(buffer.length, 1024);
+        snippet = buffer.slice(0, max).toString('base64');
+        console.debug('transcribe-chunk: audio size=', buffer.length, 'snippet_base64_len=', snippet.length);
+      }
+    } catch (e) {
+      console.debug('transcribe-chunk: failed to generate audio snippet', e);
+    }
 
     const form = new FormData();
     form.append('file', new Blob([buffer], { type: mime }), normalizeFilenameByMimeType(mime));
@@ -45,7 +74,9 @@ export async function POST(request: NextRequest) {
     if (!resp.ok) {
       const errText = await resp.text();
       console.error('Groq chunk error:', errText);
-      return NextResponse.json({ error: 'Transcription failed', details: errText }, { status: resp.status });
+      const payload: any = { error: 'Transcription failed', details: errText };
+      if (process.env.NODE_ENV !== 'production' && snippet) payload.snippet_base64 = snippet;
+      return NextResponse.json(payload, { status: resp.status });
     }
 
     const data = await resp.json();

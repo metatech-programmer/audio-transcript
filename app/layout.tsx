@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Nunito } from 'next/font/google';
 import './globals.css';
+import PersistentRecorderHost from '@/components/PersistentRecorderHost';
 
 const nunito = Nunito({
   subsets: ['latin'],
@@ -30,6 +31,7 @@ export default function RootLayout({
       </head>
       <body className={`${nunito.className} bg-slate-50`}> 
         <main>{children}</main>
+        <PersistentRecorderHost />
       </body>
     </html>
   );

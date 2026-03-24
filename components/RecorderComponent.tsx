@@ -8,6 +8,7 @@ import { useSummarization } from '@/hooks/useTranscription';
 import { formatDuration, transcribeAudio } from '@/lib/utils';
 import TestPhase from './TestPhase';
 import SoundWaves from './SoundWaves';
+import SubjectSelector from './SubjectSelector';
 import type { Session, Summary } from '@/lib/types';
 import { useEffect } from 'react';
 import { getAllFailedChunks } from '@/lib/idb';
@@ -106,7 +107,9 @@ export default function RecorderComponent({
   } = useAppStore();
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [summaryFailed, setSummaryFailed] = useState<string | null>(null);
   const [showAudioHelpModal, setShowAudioHelpModal] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
 
   const handleStart = async () => {
     // If user chose microphone and hasn't passed test, show test flow first
@@ -263,13 +266,15 @@ export default function RecorderComponent({
         setStore_Summarizing(true);
         try {
           summary = await summarize(transcriptText.trim(), recorder.language);
+          setSummaryFailed(null);
         } catch (err) {
           summaryError = err instanceof Error ? err.message : 'Auto-summarize failed';
+          setSummaryFailed(summaryError);
           console.error('Auto-summarize failed:', err);
         }
       }
 
-      if (onCreateSession) {
+        if (onCreateSession) {
         const now = new Date().toISOString();
         const titleFromTranscript = transcriptText
           .split(/\s+/)
@@ -283,8 +288,9 @@ export default function RecorderComponent({
           date: now,
           duration,
           language: recorder.language,
-          transcript: transcriptText.trim(),
-          summary: summary || undefined,
+            transcript: transcriptText.trim(),
+            summary: summary || undefined,
+            subject: selectedSubject || undefined,
           tags: [],
           createdAt: now,
           updatedAt: now,
@@ -312,6 +318,67 @@ export default function RecorderComponent({
     } catch (err) {
       console.error('processRecording error', err);
       throw err;
+    } finally {
+      setStore_Summarizing(false);
+    }
+  };
+
+  const handleRetrySummary = async () => {
+    if (!recorder.transcript || recorder.transcript.trim().length === 0) {
+      addToast('info', 'No hay transcripción para resumir.');
+      return;
+    }
+    try {
+      setStore_Summarizing(true);
+      setSummaryFailed(null);
+      const s = await summarize(recorder.transcript.trim(), recorder.language);
+      if (!s) {
+        setSummaryFailed('No se generó resumen.');
+        addToast('error', 'No se pudo generar el resumen.');
+        return;
+      }
+
+      if (!onCreateSession) {
+        // If parent didn't supply a create handler, just notify
+        addToast('success', 'Resumen generado (local) — no hay handler para crear sesión.');
+        return;
+      }
+
+      // Create session as normal flow (title, meta, transcript, summary)
+      const now = new Date().toISOString();
+      const titleFromTranscript = recorder.transcript
+        .split(/\s+/)
+        .slice(0, 8)
+        .join(' ');
+
+      const savedSession = await onCreateSession({
+        title: titleFromTranscript ? `${titleFromTranscript}...` : `Lecture ${new Date().toLocaleString()}`,
+        date: now,
+        duration,
+        language: recorder.language,
+        transcript: recorder.transcript.trim(),
+        summary: s || undefined,
+        subject: selectedSubject || undefined,
+        tags: [],
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      onSessionSaved?.(savedSession);
+      addToast('success', 'Resumen regenerado y sesión guardada.');
+
+      // Clear queued items for this session and refresh UI
+      try {
+        const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+        await hostController?.clearQueue?.(hostController?.sessionId);
+        setQueuedItems([]);
+      } catch {}
+
+      try { resetRecorder(); } catch {}
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Resumen fallido';
+      setSummaryFailed(msg);
+      addToast('error', `Reintento falló: ${msg}`);
     } finally {
       setStore_Summarizing(false);
     }
@@ -407,24 +474,19 @@ export default function RecorderComponent({
             </div>
 
             {/* Settings Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10 items-start">
 
               {/* Fuente de audio */}
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
-                  Fuente de audio
-                </label>
-                <select
-                  value={audioSource}
-                  onChange={e => setAudioSource(e.target.value as 'mic' | 'tab' | 'system')}
-                  disabled={isRecording}
-                  className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
-                >
-                  <option value="mic">Micrófono</option>
-                  <option value="tab">Audio de pestaña</option>
-                  <option value="system">Audio del sistema</option>
-                </select>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+                    Fuente de audio
+                  </label>
+                  <select value={audioSource} onChange={(e) => setAudioSource(e.target.value as any)} className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm">
+                      <option value="mic">Micrófono</option>
+                      <option value="tab">Pestaña</option>
+                      <option value="system">Sistema</option>
+                    </select>
 
                 {(audioSource === 'tab' || audioSource === 'system') && (isFirefox || isSafari) && (
                   <div className="mt-2 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
@@ -442,7 +504,7 @@ export default function RecorderComponent({
                       value={selectedDeviceId ?? ''}
                       onChange={e => setSelectedDeviceId(e.target.value || null)}
                       disabled={isRecording}
-                      className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800"
+                        className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm"
                     >
                       {audioInputs.length === 0 && <option value="">Predeterminado</option>}
                       {audioInputs.map(d => (
@@ -456,7 +518,7 @@ export default function RecorderComponent({
               {/* Language */}
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Globe size={14} className="text-slate-400" /> Language
+                  <Globe size={14} className="text-slate-400" /> Idioma
                 </label>
                 <select
                   value={recorder.language}
@@ -467,6 +529,11 @@ export default function RecorderComponent({
                   <option value="es">Spanish</option>
                   <option value="en">English</option>
                 </select>
+              </div>
+
+              {/* Subject */}
+              <div className="space-y-1.5">
+                <SubjectSelector value={selectedSubject} onChange={(v) => setSelectedSubject(v)} />
               </div>
 
               {/* Dialect */}
@@ -586,7 +653,7 @@ export default function RecorderComponent({
             )}
 
             {/* Transcript Section */}
-            {recorder.transcript && (
+            {recorder.transcript && !isRecording && (
               <div className="mb-6">
                 <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
                   <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
@@ -595,21 +662,41 @@ export default function RecorderComponent({
                   <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
                     {recorder.transcript}
                   </p>
+                  {!isRecording && (
+                    <>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="text-sm text-slate-600">¿Falto el resumen?</div>
+                        <div className="flex items-center gap-2">
+                          {summarizing ? (
+                            <div className="h-3.5 w-3.5 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
+                          ) : (
+                            <button onClick={() => void handleRetrySummary()} className="px-3 py-1 text-sm border rounded bg-white">Reintentar resumen</button>
+                          )}
+                        </div>
+                      </div>
+
+                      {summaryFailed && (
+                        <div className="mt-3 p-2 rounded bg-red-50 border border-red-100 text-sm text-red-700">Error: {summaryFailed}</div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Info Box */}
-            <div className="text-center text-[12px] text-slate-500 mt-2">
-              Speak clearly for best accuracy. Summary generation is automatic.<br />
-              <span className="block mt-2 text-orange-500 font-semibold">
-                ⚠️ Para grabaciones largas (&gt;2 horas):
-                <br />
-                - Recomendado grabar en segmentos de 1-2 horas para mayor seguridad.<br />
-                - Si la transcripción es muy larga, puede que el resumen falle, pero la transcripción completa siempre se guardará.<br />
-                - El procesamiento de grabaciones muy largas puede tardar varios minutos.
-              </span>
-            </div>
+            {/* Info Box (hidden while recording) */}
+            {!isRecording && (
+              <div className="text-center text-[12px] text-slate-500 mt-2">
+                Speak clearly for best accuracy. Summary generation is automatic.<br />
+                <span className="block mt-2 text-orange-500 font-semibold">
+                  ⚠️ Para grabaciones largas (&gt;2 horas):
+                  <br />
+                  - Recomendado grabar en segmentos de 1-2 horas para mayor seguridad.<br />
+                  - Si la transcripción es muy larga, puede que el resumen falle, pero la transcripción completa siempre se guardará.<br />
+                  - El procesamiento de grabaciones muy largas puede tardar varios minutos.
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

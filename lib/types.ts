@@ -6,6 +6,8 @@ export interface Session {
   date: string;
   duration: number;
   language: 'en' | 'es';
+  // Optional subject/classification for grouping
+  subject?: string;
   transcript: string;
   summary: Summary | null;
   tags: string[];
