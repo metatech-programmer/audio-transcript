@@ -43,6 +43,24 @@ export default function RecorderComponent({
     triggerRetry,
   } = useAudioRecorder() as any;
 
+  // Stop any existing persistent recorder when switching to tab/system capture
+  const handleAudioSourceChange = async (value: 'mic' | 'tab' | 'system') => {
+    setAudioSource(value);
+    if (value === 'tab' || value === 'system') {
+      try {
+        const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+        if (hostController && hostController.isRecording) {
+          try {
+            await hostController.stopRecording();
+            try { addToast('info', 'Se detuvo la grabación previa para evitar interferencias con la fuente compartida.'); } catch {}
+          } catch (e) {
+            // ignore errors stopping host
+          }
+        }
+      } catch {}
+    }
+  };
+
   const [queuedItems, setQueuedItems] = useState<any[]>([]);
   const [showQueueDetails, setShowQueueDetails] = useState(false);
 
@@ -470,7 +488,7 @@ export default function RecorderComponent({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
                     Fuente de audio
                   </label>
-                  <select value={audioSource} onChange={(e) => setAudioSource(e.target.value as any)} className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm">
+                  <select value={audioSource} onChange={(e) => void handleAudioSourceChange(e.target.value as any)} className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm">
                       <option value="mic">Micrófono</option>
                       <option value="tab">Pestaña</option>
                       <option value="system">Sistema</option>
