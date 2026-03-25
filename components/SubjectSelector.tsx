@@ -64,11 +64,11 @@ export default function SubjectSelector({ value, onChange }: SubjectSelectorProp
   return (
     <div>
       <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">Materia</label>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1 flex items-center gap-2 min-w-0">
         <select
           value={value ?? ""}
           onChange={(e) => onChange?.(e.target.value || null)}
-          className="flex-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm"
+          className="flex-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[70dvw] md:max-w-[45dvw] lg:max-w-[30dvw]"
         >
           <option value="">Sin clasificar</option>
           {subjects.map((s) => (
@@ -80,7 +80,7 @@ export default function SubjectSelector({ value, onChange }: SubjectSelectorProp
 
         <button
           onClick={() => setAdding((a) => !a)}
-          className="h-10 w-10 flex items-center justify-center rounded-md border border-[#EAEAEB] bg-white hover:bg-slate-50"
+          className="h-10 w-10 flex items-center justify-center rounded-md border border-[#EAEAEB] bg-white hover:bg-slate-50 flex-shrink-0"
           aria-label="Add subject"
         >
           <PlusCircle size={18} className="text-slate-600" />
@@ -88,12 +88,12 @@ export default function SubjectSelector({ value, onChange }: SubjectSelectorProp
       </div>
 
       {adding && (
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 flex gap-2 min-w-0">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="Nombre de la materia"
-            className="flex-1 px-3 py-2 border rounded text-[13px]"
+            className="flex-1 px-3 py-2 border rounded text-[13px] min-w-0 truncate overflow-hidden max-w-[70dvw] md:max-w-[45dvw] lg:max-w-[30dvw]"
           />
           <button onClick={handleAdd} className="px-3 py-2 bg-slate-900 text-white rounded">Crear</button>
           <button onClick={() => { setAdding(false); setNewName(""); }} className="px-3 py-2 border rounded">Cancelar</button>

@@ -482,15 +482,15 @@ export default function RecorderComponent({
             </div>
 
             {/* Settings Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-10 items-start min-w-0">
 
               {/* Fuente de audio */}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
                     Fuente de audio
                   </label>
-                  <select value={audioSource} onChange={(e) => void handleAudioSourceChange(e.target.value as any)} className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm">
+                  <select value={audioSource} onChange={(e) => void handleAudioSourceChange(e.target.value as any)} className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[60dvw] md:max-w-[40dvw] lg:max-w-[25dvw]">
                       <option value="mic">Micrófono</option>
                       <option value="tab">Pestaña</option>
                       <option value="system">Sistema</option>
@@ -510,13 +510,13 @@ export default function RecorderComponent({
                 )}
 
                 {audioSource === 'mic' && (
-                  <div className="mt-2">
+                  <div className="mt-2 min-w-0">
                     <label className="text-[12px] text-slate-600">Seleccionar micrófono</label>
                     <select
                       value={selectedDeviceId ?? ''}
                       onChange={e => setSelectedDeviceId(e.target.value || null)}
                       disabled={isRecording}
-                        className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm"
+                        className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[60dvw] md:max-w-[40dvw] lg:max-w-[25dvw]"
                     >
                       {audioInputs.length === 0 && <option value="">Predeterminado</option>}
                       {audioInputs.map(d => (
@@ -529,7 +529,7 @@ export default function RecorderComponent({
 
               {/* Language + Dialect */}
               <div className="space-y-4">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
                     <Globe size={14} className="text-slate-400" /> Idioma
                   </label>
@@ -537,14 +537,14 @@ export default function RecorderComponent({
                     value={recorder.language}
                     onChange={(e) => setLanguage(e.target.value as 'en' | 'es')}
                     disabled={isRecording}
-                    className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
+                    className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm min-w-0 truncate overflow-hidden max-w-[50dvw] md:max-w-[36dvw] lg:max-w-[24dvw]"
                   >
                     <option value="es">Español</option>
                     <option value="en">Inglés</option>
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0">
                   <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 12A10 10 0 0 1 12 2z"></path></svg>
                     Dialect
@@ -553,7 +553,7 @@ export default function RecorderComponent({
                     value={selectedDialect}
                     onChange={(e) => setSelectedDialect(e.target.value)}
                     disabled={isRecording}
-                    className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm"
+                    className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm min-w-0 truncate overflow-hidden max-w-[50dvw] md:max-w-[36dvw] lg:max-w-[24dvw]"
                   >
                     <option value="es-ES">España</option>
                     <option value="es-MX">México</option>
@@ -653,7 +653,7 @@ export default function RecorderComponent({
                       {queuedItems.map((it: any) => (
                         <div key={it.id} className="py-1 border-b last:border-b-0">
                           <div className="flex items-center justify-between">
-                            <div className="text-slate-700">{it.sessionId || '—'}</div>
+                            <div className="text-slate-700 truncate-ellipsis max-w-dvw-60 flex-truncate">{it.sessionId || '—'}</div>
                             <div className="text-slate-500">chunk #{it.chunkIndex}</div>
                           </div>
                           <div className="text-slate-500">Guardado: {fmtTime(it.createdAt)} atrás · id: {it.id.slice(0, 12)}</div>

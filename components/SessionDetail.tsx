@@ -87,7 +87,7 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
                 <FileText size={20} />
               </div>
               <div>
-                <h1 className="text-2xl font-extrabold text-slate-900">{session.title}</h1>
+                <h1 className="text-2xl font-extrabold text-slate-900 truncate-ellipsis max-w-dvw-80 flex-truncate">{session.title}</h1>
                 <div className="text-sm text-slate-600 mt-1 flex items-center gap-4">
                   <span className="flex items-center gap-1"><Calendar size={14} /> {formatDate(session.date)}</span>
                   <span className="flex items-center gap-1"><Clock size={14} /> {formatDuration(session.duration)}</span>
@@ -131,12 +131,12 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold flex items-center gap-2"><BookOpen size={18} /> Identificación y Metadatos</h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-slate-700">
-                  <div><strong>Asignatura:</strong> {String((summaryData.metadata && (summaryData.metadata as any).subject) || '—')}</div>
-                  <div><strong>Unidad:</strong> {String((summaryData.metadata && (summaryData.metadata as any).unit) || '—')}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-slate-700">
+                  <div><strong>Asignatura:</strong> <span className="truncate-ellipsis max-w-dvw-50 inline-block">{String((summaryData.metadata && (summaryData.metadata as any).subject) || '—')}</span></div>
+                  <div><strong>Unidad:</strong> <span className="truncate-ellipsis max-w-dvw-40 inline-block">{String((summaryData.metadata && (summaryData.metadata as any).unit) || '—')}</span></div>
                   <div><strong>Sesión:</strong> {String((summaryData.metadata && (summaryData.metadata as any).sessionNumber) || '—')}</div>
-                  <div className="sm:col-span-3"><strong>Eje temático:</strong> {String((summaryData.metadata && (summaryData.metadata as any).thematicAxis) || '—')}</div>
-                  <div className="sm:col-span-3"><strong>Keywords:</strong> {Array.isArray((summaryData.metadata && (summaryData.metadata as any).keywords)) ? (summaryData.metadata as any).keywords.join(', ') : String((summaryData.metadata && (summaryData.metadata as any).keywords) || '—')}</div>
+                  <div className="sm:col-span-3"><strong>Eje temático:</strong> <span className="truncate-ellipsis max-w-dvw-70 inline-block">{String((summaryData.metadata && (summaryData.metadata as any).thematicAxis) || '—')}</span></div>
+                  <div className="sm:col-span-3"><strong>Keywords:</strong> <span className="truncate-ellipsis max-w-dvw-70 inline-block">{Array.isArray((summaryData.metadata && (summaryData.metadata as any).keywords)) ? (summaryData.metadata as any).keywords.join(', ') : String((summaryData.metadata && (summaryData.metadata as any).keywords) || '—')}</span></div>
                 </div>
               </section>
 

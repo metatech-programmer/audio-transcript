@@ -181,3 +181,27 @@ body.dark ::-webkit-scrollbar-track {
 body.dark ::-webkit-scrollbar-thumb {
   background: #1f2937;
 }
+
+/* Project-specific utilities: responsive max-widths (dvw) and truncation helpers
+   These provide simple classes to constrain controls using viewport-relative units
+   and apply ellipsis truncation so long texts don't break layout. */
+.truncate-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.max-w-dvw-70 { max-width: 70dvw; }
+.max-w-dvw-60 { max-width: 60dvw; }
+.max-w-dvw-50 { max-width: 50dvw; }
+.max-w-dvw-40 { max-width: 40dvw; }
+.max-w-dvw-30 { max-width: 30dvw; }
+
+/* Helpful percentage-based fallbacks for older browsers */
+.max-w-pct-90 { max-width: 90%; }
+.max-w-pct-75 { max-width: 75%; }
+.max-w-pct-50 { max-width: 50%; }
+
+/* Utility to ensure flex items can shrink and truncate properly */
+.flex-truncate { min-width: 0; overflow: hidden; }
+

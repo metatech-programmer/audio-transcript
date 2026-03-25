@@ -27,8 +27,8 @@ function SubjectGroup({ subject, items, currentSession, onSelectSession, onDelet
   return (
     <div className="border rounded-md bg-white">
       <div className="px-3 py-2 flex items-center justify-between cursor-pointer" onClick={() => setCollapsed((c) => !c)}>
-        <div className="flex items-center gap-2">
-          <strong className="text-sm">{subject}</strong>
+        <div className="flex items-center gap-2 min-w-0">
+          <strong className="text-sm truncate-ellipsis max-w-dvw-50 flex-truncate">{subject}</strong>
           <span className="text-xs text-slate-500">{items.length}</span>
         </div>
         <div className="text-sm text-slate-500">{collapsed ? "Mostrar" : "Ocultar"}</div>
@@ -44,8 +44,8 @@ function SubjectGroup({ subject, items, currentSession, onSelectSession, onDelet
               }`}
             >
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-slate-800">{session.title || 'Grabación'}</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-800 truncate-ellipsis max-w-dvw-60 flex-truncate">{session.title || 'Grabación'}</div>
                   <div className="text-xs text-slate-500">{formatDate(session.createdAt)}</div>
                 </div>
                 <button onClick={(e) => onDeleteRequest?.(session.id, e)} className="p-2 rounded hover:bg-red-50 text-red-600">
