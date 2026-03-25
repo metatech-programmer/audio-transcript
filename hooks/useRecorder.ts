@@ -3,6 +3,82 @@ import { useAppStore } from '@/lib/store';
 import { transcribeAudio, generateId } from '@/lib/utils';
 import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk, clearFailedChunksBySession } from '@/lib/idb';
 
+// Transcode helpers: convert an AudioBuffer to WAV ArrayBuffer
+function audioBufferToWav(buffer: AudioBuffer) {
+  const numOfChan = buffer.numberOfChannels;
+  const length = buffer.length * numOfChan * 2 + 44;
+  const bufferArray = new ArrayBuffer(length);
+  const view = new DataView(bufferArray);
+
+  /* RIFF identifier */ writeString(view, 0, 'RIFF');
+  /* file length */ view.setUint32(4, 36 + buffer.length * numOfChan * 2, true);
+  /* RIFF type */ writeString(view, 8, 'WAVE');
+  /* format chunk identifier */ writeString(view, 12, 'fmt ');
+  /* format chunk length */ view.setUint32(16, 16, true);
+  /* sample format (raw) */ view.setUint16(20, 1, true);
+  /* channel count */ view.setUint16(22, numOfChan, true);
+  /* sample rate */ view.setUint32(24, buffer.sampleRate, true);
+  /* byte rate (sample rate * block align) */ view.setUint32(28, buffer.sampleRate * numOfChan * 2, true);
+  /* block align (channel count * bytes per sample) */ view.setUint16(32, numOfChan * 2, true);
+  /* bits per sample */ view.setUint16(34, 16, true);
+  /* data chunk identifier */ writeString(view, 36, 'data');
+  /* data chunk length */ view.setUint32(40, buffer.length * numOfChan * 2, true);
+
+  // write interleaved data
+  let offset = 44;
+  const channels: Float32Array[] = [];
+  for (let i = 0; i < numOfChan; i++) channels.push(buffer.getChannelData(i));
+
+  const sampleCount = buffer.length;
+  for (let i = 0; i < sampleCount; i++) {
+    for (let ch = 0; ch < numOfChan; ch++) {
+      const chan = channels[ch];
+      let sample = (chan && chan[i]) ?? 0;
+      sample = Math.max(-1, Math.min(1, sample));
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      view.setInt16(offset, sample, true);
+      offset += 2;
+    }
+  }
+
+  return bufferArray;
+}
+
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
+
+async function transcodeBlobToWav(blob: Blob): Promise<Blob> {
+  if (typeof window === 'undefined' || !(window.AudioContext || (window as any).webkitAudioContext)) {
+    throw new Error('AudioContext not available');
+  }
+
+  const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext) as any;
+  const audioCtx = new AudioCtx();
+  try {
+    const ab = await blob.arrayBuffer();
+    const decoded = await audioCtx.decodeAudioData(ab.slice(0));
+    const offline = new (window.OfflineAudioContext || (window as any).OfflineAudioContext)(
+      decoded.numberOfChannels,
+      decoded.length,
+      decoded.sampleRate
+    );
+    const src = offline.createBufferSource();
+    src.buffer = decoded;
+    src.connect(offline.destination);
+    src.start(0);
+    const rendered = await offline.startRendering();
+    const wavArray = audioBufferToWav(rendered);
+    return new Blob([wavArray], { type: 'audio/wav' });
+  } finally {
+    try {
+      audioCtx.close();
+    } catch {}
+  }
+}
+
 /**
  * Hook for handling audio recording with MediaRecorder API
  */
@@ -201,8 +277,39 @@ export function useAudioRecorder() {
                 return true;
               }
 
-              // non-ok response -> queue for retry
+              // non-ok response -> attempt a re-encode fallback for invalid media
               const errText = await resp.text().catch(() => '');
+              // If provider reports invalid media, try re-encoding to WAV and retry once
+              if (resp.status === 400 && /could not process file|invalid_request_error/i.test(errText)) {
+                try {
+                  const wavBlob = await transcodeBlobToWav(blob);
+                  const retryForm = new FormData();
+                  retryForm.append('audio', wavBlob, `chunk_${batchStart}_${batchEnd}.wav`);
+                  retryForm.append('sessionId', sessionIdRef.current || '');
+                  retryForm.append('chunkIndex', String(batchStart));
+                  retryForm.append('final', isFinal ? '1' : '0');
+                  retryForm.append('language', recorder.language);
+
+                  const retryResp = await fetch('/api/transcribe-chunk', { method: 'POST', body: retryForm });
+                  if (retryResp.ok) {
+                    const payload = await retryResp.json();
+                    const text = payload.text || '';
+                    persistTranscript(batchStart, text, 'done');
+                    if (text && text.trim()) {
+                      transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
+                      setTranscript(transcriptRef.current);
+                    }
+                    lastRotateIndexRef.current = batchEnd;
+                    setProcessedChunks(lastRotateIndexRef.current);
+                    return true;
+                  }
+                  const retryErr = await retryResp.text().catch(() => '');
+                  console.warn('Chunk retry after transcode failed:', retryResp.status, retryErr);
+                } catch (re) {
+                  console.debug('Transcode+retry failed', re);
+                }
+              }
+
               try {
                 await saveFailedChunk({
                   id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
