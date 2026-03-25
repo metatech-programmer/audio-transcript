@@ -399,8 +399,10 @@ export default function RecorderComponent({
           const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
           if (hostController && hostController.stopRecording) {
             const audioBlob = await hostController.stopRecording();
-            // Process using the existing transcript set by host
-            await processRecording(audioBlob, true);
+            // Process using the existing transcript set by host, only if audio returned
+            if (audioBlob) {
+              await processRecording(audioBlob, true);
+            }
           } else {
             await handleStop();
           }

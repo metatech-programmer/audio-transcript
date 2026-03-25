@@ -24,6 +24,8 @@ export interface DBSession {
   date: string;
   duration: number;
   language: 'en' | 'es';
+  // Optional subject/classification for grouping
+  subject?: string;
   transcript: string;
   summary: any;
   tags: string[];

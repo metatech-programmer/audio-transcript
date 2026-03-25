@@ -109,121 +109,168 @@ export function useAudioRecorder() {
       sessionIdRef.current = generateId();
       lastRotateIndexRef.current = 0;
 
-      // Define rotation/send function and store on ref so stopRecording can call it
+      // Define rotation/send function (chunked uploader) and store on ref so stopRecording can call it
       rotateFuncRef.current = async (final: boolean) => {
         try {
           const start = lastRotateIndexRef.current || 0;
           const end = audioChunksRef.current.length;
           if (end <= start) return;
 
-          const chunksToSend = audioChunksRef.current.slice(start, end);
-          const blob = new Blob(chunksToSend, { type: 'audio/webm' });
+          // Maximum batch size: 3 MB to avoid serverless payload limits
+          const MAX_BYTES = 3 * 1024 * 1024;
 
-          // Client-side validation: ensure we have a usable blob and sessionId
-          if (!sessionIdRef.current) {
-            console.warn('rotateFunc: missing sessionId — generating temporary id');
-            sessionIdRef.current = String(Date.now());
-          }
-
-          if (!blob || (blob.size && blob.size === 0)) {
-            console.warn('rotateFunc: empty blob detected for chunk', start, end);
-            // Save an empty/failed marker to IndexedDB so retry UI shows it
-            try {
-              await saveFailedChunk({
-                id: `${sessionIdRef.current}:${start}:${Date.now()}:empty`,
-                sessionId: sessionIdRef.current || '',
-                chunkIndex: start,
-                blob,
-                final,
-                language: recorder.language,
-                createdAt: new Date().toISOString(),
-              } as any);
-              const all = await getAllFailedChunks();
-              setQueuedCount(all.length || 0);
-            } catch (e) {
-              // fall back to localStorage marker
-              try {
-                const key = `session:${sessionIdRef.current}`;
-                const raw = localStorage.getItem(key);
-                const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
-                parsed.transcripts = parsed.transcripts || [];
-                parsed.transcripts.push({ index: start, text: '', createdAt: new Date().toISOString(), status: 'failed-empty' });
-                localStorage.setItem(key, JSON.stringify(parsed));
-              } catch {}
-            }
-            return;
-          }
-
-          const form = new FormData();
-          form.append('audio', blob, `chunk_${start}_${end}.webm`);
-          form.append('sessionId', sessionIdRef.current || '');
-          form.append('chunkIndex', String(start));
-          form.append('final', final ? '1' : '0');
-          form.append('language', recorder.language);
-
-          // Final client-side checks before sending
-          if (!sessionIdRef.current) {
-            console.warn('rotateFunc: sessionId missing before fetch — aborting send');
-            return;
-          }
-
-          const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
-          if (resp.ok) {
-            const payload = await resp.json();
-            const text = payload.text || '';
-            // persist transcript part locally
+          // Helper to persist transcript piece to localStorage (same shape as before)
+          const persistTranscript = (idx: number, text: string, status = 'done') => {
             try {
               const key = `session:${sessionIdRef.current}`;
               const raw = localStorage.getItem(key);
               const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
               parsed.transcripts = parsed.transcripts || [];
-              parsed.transcripts.push({ index: start, text, createdAt: new Date().toISOString(), status: 'done' });
+              parsed.transcripts.push({ index: idx, text, createdAt: new Date().toISOString(), status });
               localStorage.setItem(key, JSON.stringify(parsed));
             } catch {}
+          };
 
-            if (text && text.trim()) {
-              transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
-              setTranscript(transcriptRef.current);
-            }
+          // Ensure sessionId exists
+          if (!sessionIdRef.current) {
+            console.warn('rotateFunc: missing sessionId — generating temporary id');
+            sessionIdRef.current = String(Date.now());
+          }
 
-            // advance the rotation pointer only on success
-            lastRotateIndexRef.current = end;
-            setProcessedChunks(lastRotateIndexRef.current);
-          } else {
-            // queue failed chunk in IndexedDB for retry
-            try {
-              await saveFailedChunk({
-                id: `${sessionIdRef.current}:${start}:${Date.now()}`,
-                sessionId: sessionIdRef.current || '',
-                chunkIndex: start,
-                blob,
-                final,
-                language: recorder.language,
-              });
-              // update queued count
-              const all = await getAllFailedChunks();
-              setQueuedCount(all.length || 0);
-            } catch (e) {
-              // fallback to localStorage if IndexedDB fails
+          // Build and send batches without exceeding MAX_BYTES
+          let batch: Blob[] = [];
+          let batchSize = 0;
+          let batchStartIndex = start;
+
+          const flushBatch = async (batchChunks: Blob[], batchStart: number, batchEnd: number, isFinal: boolean) => {
+            if (!batchChunks || batchChunks.length === 0) return true;
+            const blob = new Blob(batchChunks, { type: 'audio/webm' });
+
+            if (!blob || blob.size === 0) {
+              // save empty marker
               try {
-                const key = `session:${sessionIdRef.current}`;
-                const raw = localStorage.getItem(key);
-                const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
-                parsed.transcripts = parsed.transcripts || [];
-                parsed.transcripts.push({ index: start, text: '', createdAt: new Date().toISOString(), status: 'failed' });
-                localStorage.setItem(key, JSON.stringify(parsed));
-              } catch {}
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}:empty`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob,
+                  final: isFinal,
+                  language: recorder.language,
+                  createdAt: new Date().toISOString(),
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+              } catch {
+                persistTranscript(batchStart, '', 'failed-empty');
+              }
+              return false;
             }
+
+            const form = new FormData();
+            form.append('audio', blob, `chunk_${batchStart}_${batchEnd}.webm`);
+            form.append('sessionId', sessionIdRef.current || '');
+            form.append('chunkIndex', String(batchStart));
+            form.append('final', isFinal ? '1' : '0');
+            form.append('language', recorder.language);
+
+            try {
+              const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
+              if (resp.ok) {
+                const payload = await resp.json();
+                const text = payload.text || '';
+                persistTranscript(batchStart, text, 'done');
+                if (text && text.trim()) {
+                  transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
+                  setTranscript(transcriptRef.current);
+                }
+                // advance rotation pointer
+                lastRotateIndexRef.current = batchEnd;
+                setProcessedChunks(lastRotateIndexRef.current);
+                return true;
+              }
+
+              // non-ok response -> queue for retry
+              const errText = await resp.text().catch(() => '');
+              try {
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob,
+                  final: isFinal,
+                  language: recorder.language,
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+              } catch (e) {
+                persistTranscript(batchStart, '', 'failed');
+              }
+              console.warn('Chunk upload failed:', resp.status, errText);
+              return false;
+            } catch (e) {
+              // Network or fetch error -> queue for retry
+              try {
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob,
+                  final: isFinal,
+                  language: recorder.language,
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+              } catch {
+                persistTranscript(batchStart, '', 'failed');
+              }
+              console.debug('Chunk upload exception', e);
+              return false;
+            }
+          };
+
+          for (let i = start; i < end; i++) {
+            const chunk = audioChunksRef.current[i];
+            // Defensive: skip any missing chunks to avoid pushing `undefined` into batch
+            if (!chunk) {
+              // Advance pointer if holes exist
+              batchStartIndex = Math.max(batchStartIndex, i + 1);
+              continue;
+            }
+
+            const size = (chunk as Blob).size || 0;
+
+            // If adding this chunk would exceed MAX_BYTES and we have a batch to send, flush first
+            if (batchSize + size > MAX_BYTES && batch.length > 0) {
+              const batchEnd = i; // exclusive
+              const ok = await flushBatch(batch, batchStartIndex, batchEnd, false);
+              if (!ok) {
+                // stop attempting further batches for now
+                return;
+              }
+              // reset batch
+              batch = [];
+              batchSize = 0;
+              batchStartIndex = i;
+            }
+
+            batch.push(chunk as Blob);
+            batchSize += size;
+          }
+
+          // flush remaining batch
+          if (batch.length > 0) {
+            const batchEnd = end;
+            await flushBatch(batch, batchStartIndex, batchEnd, final);
           }
         } catch (err) {
-          console.debug('rotateAndSendChunk error', err);
+          console.debug('rotateAndSendChunk (chunked) error', err);
         }
       };
 
-      // Start rotation timer: every 10 minutes flush a larger chunk to server
+      // Start rotation timer: flush regularly (30s) to keep chunk sizes small
       rotateTimerRef.current = setInterval(() => {
         void rotateFuncRef.current?.(false);
-      }, 10 * 60 * 1000);
+      }, 30 * 1000);
 
       // Setup microphone level meter for real-time user feedback.
       const audioContext = new AudioContext();

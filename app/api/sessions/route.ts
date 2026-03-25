@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       date: data.date || new Date().toISOString(),
       duration: data.duration || 0,
       language: data.language || 'en',
+      subject: data.subject || undefined,
       transcript: data.transcript || '',
       summary: data.summary || null,
       tags: data.tags || [],
