@@ -104,6 +104,7 @@ export function useAudioRecorder() {
       setLiveStatus('listening');
       setLastChunkText('');
       setProcessedChunks(0);
+      processedChunksRef.current = 0;
 
       // initialize session ID and rotation pointer
       sessionIdRef.current = generateId();
@@ -195,6 +196,8 @@ export function useAudioRecorder() {
                   // advance rotation pointer to after this chunk
                   lastRotateIndexRef.current = Math.max(lastRotateIndexRef.current, absIndex + 1);
                   setProcessedChunks(lastRotateIndexRef.current);
+                  // keep ref in sync with state so other logic uses the correct value
+                  processedChunksRef.current = lastRotateIndexRef.current;
                   continue;
                 }
 
@@ -344,6 +347,7 @@ export function useAudioRecorder() {
             setTranscript(text);
             setLastChunkText(text.split(/\s+/).slice(-8).join(' '));
             setProcessedChunks((count) => count + 1);
+            processedChunksRef.current = (processedChunksRef.current || 0) + 1;
             setLiveStatus('updated');
           }
         };
