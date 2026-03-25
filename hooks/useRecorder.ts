@@ -144,7 +144,8 @@ export function useAudioRecorder() {
 
           const flushBatch = async (batchChunks: Blob[], batchStart: number, batchEnd: number, isFinal: boolean) => {
             if (!batchChunks || batchChunks.length === 0) return true;
-            const blob = new Blob(batchChunks, { type: 'audio/webm' });
+            // Include codec in MIME to help upstream transcribers detect format
+            const blob = new Blob(batchChunks, { type: 'audio/webm;codecs=opus' });
 
             if (!blob || blob.size === 0) {
               // save empty marker
@@ -164,6 +165,17 @@ export function useAudioRecorder() {
                 persistTranscript(batchStart, '', 'failed-empty');
               }
               return false;
+            }
+
+            // Log and guard tiny blobs that many transcription services reject
+            try {
+              console.debug('flushBatch: blob', { size: blob.size, type: blob.type, batchStart, batchEnd, isFinal });
+            } catch {}
+
+            const MIN_BYTES = 1000;
+            if (blob.size < MIN_BYTES) {
+              console.warn('flushBatch: skipping tiny blob', { size: blob.size, MIN_BYTES });
+              return true;
             }
 
             const form = new FormData();
@@ -238,6 +250,14 @@ export function useAudioRecorder() {
             }
 
             const size = (chunk as Blob).size || 0;
+
+            // Skip tiny individual chunks which may be rejected by the transcriber
+            const MIN_CHUNK_BYTES = 1000;
+            if (size < MIN_CHUNK_BYTES) {
+              // Advance pointer if we skip this tiny chunk
+              batchStartIndex = Math.max(batchStartIndex, i + 1);
+              continue;
+            }
 
             // If adding this chunk would exceed MAX_BYTES and we have a batch to send, flush first
             if (batchSize + size > MAX_BYTES && batch.length > 0) {
@@ -386,9 +406,21 @@ export function useAudioRecorder() {
               return;
             }
 
+            // Use explicit codec to match MediaRecorder output and improve compatibility
             const payload = new Blob(newChunks, {
-              type: 'audio/webm',
+              type: 'audio/webm;codecs=opus',
             });
+
+            // Skip tiny payloads which upstream may reject
+            try {
+              if (payload.size < 1000) {
+                console.warn('ondataavailable: skipping tiny payload', { size: payload.size });
+                isChunkTranscribingRef.current = false;
+                setIsLiveTranscribing(false);
+                setLiveStatus('listening');
+                return;
+              }
+            } catch {}
 
             const chunkText = await transcribeAudio(payload, recorder.language, {
               softFail: true,
@@ -461,7 +493,7 @@ export function useAudioRecorder() {
         }
 
         const audioBlob = new Blob(audioChunksRef.current, {
-          type: 'audio/webm',
+          type: 'audio/webm;codecs=opus',
         });
 
         // Always attempt a final full transcription of the entire recording so
