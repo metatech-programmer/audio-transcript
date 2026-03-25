@@ -258,9 +258,7 @@ export default function RecorderComponent({
       }
 
       if (!transcriptText || !transcriptText.trim()) {
-        setTranscript('');
-        setSummaryFailed('No se detectó voz o la transcripción falló. Intenta grabar de nuevo más cerca del micrófono.');
-        addToast('error', 'No se pudo transcribir el audio. Intenta grabar de nuevo.');
+        addToast('info', 'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.');
         return;
       }
 
@@ -277,15 +275,12 @@ export default function RecorderComponent({
           setSummaryFailed(null);
         } catch (err) {
           summaryError = err instanceof Error ? err.message : 'Auto-summarize failed';
-          setSummaryFailed('No se pudo generar el resumen: ' + summaryError);
-          addToast('error', 'No se pudo generar el resumen. Intenta de nuevo o revisa tu conexión.');
+          setSummaryFailed(summaryError);
           console.error('Auto-summarize failed:', err);
         }
-      } else {
-        setSummaryFailed('La transcripción es muy corta para resumir.');
       }
 
-      if (onCreateSession) {
+        if (onCreateSession) {
         const now = new Date().toISOString();
         const titleFromTranscript = transcriptText
           .split(/\s+/)
@@ -299,9 +294,9 @@ export default function RecorderComponent({
           date: now,
           duration,
           language: recorder.language,
-          transcript: transcriptText.trim(),
-          summary: summary || undefined,
-          subject: selectedSubject || undefined,
+            transcript: transcriptText.trim(),
+            summary: summary || undefined,
+            subject: selectedSubject || undefined,
           tags: [],
           createdAt: now,
           updatedAt: now,
