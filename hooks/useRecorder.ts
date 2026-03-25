@@ -115,6 +115,66 @@ export function useAudioRecorder() {
   const { setRecording, setDuration, setRecorderError, setTranscript, recorder } =
     useAppStore();
 
+  // Helper: read persisted per-chunk transcripts from localStorage and join them in order
+  const readPersistedTranscript = (sessionId: string | null) => {
+    try {
+      if (!sessionId) return '';
+      const key = `session:${sessionId}`;
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+      if (!raw) return '';
+      const parsed = JSON.parse(raw as string);
+      const arr = parsed?.transcripts;
+      if (!Array.isArray(arr)) return '';
+      const byIndex: Record<number, string> = {};
+      for (const it of arr) {
+        const idx = Number(it?.index ?? NaN);
+        if (Number.isNaN(idx)) continue;
+        // keep latest for index if duplicates exist
+        byIndex[idx] = String(it.text || '').trim();
+      }
+      const keys = Object.keys(byIndex).map((k) => Number(k)).sort((a, b) => a - b);
+      const pieces: string[] = [];
+      for (const k of keys) {
+        const t = byIndex[k];
+        if (t) pieces.push(t);
+      }
+      return pieces.join(' ').trim();
+    } catch (e) {
+      return '';
+    }
+  };
+
+  // Helper: read persisted transcripts and return details (text, count, lastSavedAt)
+  const readPersistedTranscriptDetails = (sessionId: string | null) => {
+    try {
+      if (!sessionId) return { text: '', count: 0, lastSavedAt: null as string | null };
+      const key = `session:${sessionId}`;
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+      if (!raw) return { text: '', count: 0, lastSavedAt: null };
+      const parsed = JSON.parse(raw as string);
+      const arr = parsed?.transcripts;
+      if (!Array.isArray(arr) || arr.length === 0) return { text: '', count: 0, lastSavedAt: null };
+      const byIndex: Record<number, { text: string; createdAt?: string }> = {};
+      let lastSaved: string | null = null;
+      for (const it of arr) {
+        const idx = Number(it?.index ?? NaN);
+        if (Number.isNaN(idx)) continue;
+        const text = String(it.text || '').trim();
+        byIndex[idx] = { text, createdAt: it?.createdAt || null };
+        if (it?.createdAt) lastSaved = it.createdAt;
+      }
+      const keys = Object.keys(byIndex).map((k) => Number(k)).sort((a, b) => a - b);
+      const pieces: string[] = [];
+      for (const k of keys) {
+        const t = byIndex[k]?.text;
+        if (t) pieces.push(t);
+      }
+      return { text: pieces.join(' ').trim(), count: keys.length, lastSavedAt: lastSaved };
+    } catch (e) {
+      return { text: '', count: 0, lastSavedAt: null };
+    }
+  };
+
 
   /**
    * Inicia la grabación, permitiendo pasar un stream personalizado (mic, tab, system)
@@ -603,21 +663,19 @@ export function useAudioRecorder() {
           type: 'audio/webm;codecs=opus',
         });
 
-        // Always attempt a final full transcription of the entire recording so
-        // the saved transcript covers from second 0 until the end.
+        // Attempt a final full transcription of the entire recording, but do not
+        // blindly overwrite the accumulated per-chunk transcript. Prefer the
+        // assembled persisted transcript (from per-chunk uploads) when available
+        // because final large-blob transcription can fail or be truncated by the
+        // provider for very long recordings.
+        let finalText: string | null = null;
         try {
-          const finalText = await transcribeAudio(audioBlob, recorder.language, {
+          finalText = await transcribeAudio(audioBlob, recorder.language, {
             softFail: true,
           });
-          if (finalText && finalText.trim()) {
-            transcriptRef.current = finalText.trim();
-            setTranscript(transcriptRef.current);
-            // Mark all chunks as processed
-            processedChunksRef.current = audioChunksRef.current.length;
-            setProcessedChunks(processedChunksRef.current);
-          }
         } catch (err) {
           console.error('Final transcription error:', err);
+          finalText = null;
         }
         // Send any remaining rotated chunk to server as final
         try {
@@ -626,6 +684,35 @@ export function useAudioRecorder() {
           }
         } catch (e) {
           console.debug('Final rotate/send failed', e);
+        }
+        // Reconstruct the best-available transcript: prefer persisted per-chunk
+        // transcripts (they are saved as chunks complete), fall back to finalText
+        // if no persisted content exists, otherwise merge if finalText is longer.
+        try {
+          const persisted = readPersistedTranscript(sessionIdRef.current);
+          const cleanedFinal = finalText ? String(finalText).trim() : '';
+          let chosen = '';
+          if (persisted && persisted.length > 0) {
+            // If final transcription produced extra unique content, append it.
+            if (cleanedFinal && cleanedFinal.length > persisted.length + 20) {
+              // If final is substantially longer, use it; otherwise keep persisted.
+              chosen = cleanedFinal;
+            } else {
+              chosen = persisted;
+            }
+          } else if (cleanedFinal) {
+            chosen = cleanedFinal;
+          }
+
+          if (chosen) {
+            transcriptRef.current = chosen.trim();
+            setTranscript(transcriptRef.current);
+            // Mark all chunks as processed
+            processedChunksRef.current = audioChunksRef.current.length;
+            setProcessedChunks(processedChunksRef.current);
+          }
+        } catch (e) {
+          // ignore reconstruction errors
         }
         // Clear rotate timer
         try {
@@ -853,6 +940,8 @@ export function useAudioRecorder() {
     },
     clearQueue,
     sessionId: sessionIdRef.current,
+    reconstructPersistedTranscript: () => readPersistedTranscript(sessionIdRef.current),
+    reconstructPersistedTranscriptDetails: () => readPersistedTranscriptDetails(sessionIdRef.current),
   };
 }
 

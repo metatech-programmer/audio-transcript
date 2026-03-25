@@ -41,7 +41,39 @@ export default function RecorderComponent({
     queuedCount,
     retrying,
     triggerRetry,
+    reconstructPersistedTranscript,
+    reconstructPersistedTranscriptDetails,
   } = useAudioRecorder() as any;
+
+  const [persistedInfo, setPersistedInfo] = useState<{ text: string; count: number; lastSavedAt: string | null }>({ text: '', count: 0, lastSavedAt: null });
+
+  // Poll persisted transcript details while recording (shows incremental save progress)
+  useEffect(() => {
+    let id: number | null = null;
+    const poll = async () => {
+      try {
+        if (typeof reconstructPersistedTranscriptDetails === 'function') {
+          const d = await reconstructPersistedTranscriptDetails();
+          if (d && (d.count !== persistedInfo.count || d.lastSavedAt !== persistedInfo.lastSavedAt)) {
+            setPersistedInfo({ text: d.text || '', count: d.count || 0, lastSavedAt: d.lastSavedAt || null });
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    if (isRecording) {
+      // initial poll
+      void poll();
+      id = window.setInterval(() => void poll(), 2000);
+    } else {
+      // when not recording, take one final snapshot
+      void poll();
+    }
+
+    return () => { if (id) window.clearInterval(id); };
+  }, [isRecording, reconstructPersistedTranscriptDetails, persistedInfo.count, persistedInfo.lastSavedAt]);
 
   // Stop any existing persistent recorder when switching to tab/system capture
   const handleAudioSourceChange = async (value: 'mic' | 'tab' | 'system') => {
@@ -257,12 +289,26 @@ export default function RecorderComponent({
         transcriptText = await transcribeAudio(audioBlob, recorder.language);
       }
 
-      if (!transcriptText || !transcriptText.trim()) {
+      // Prefer the persisted per-chunk transcript when available (more resilient
+      // for long recordings). Reconstruct and choose the most complete result.
+      const persisted = typeof reconstructPersistedTranscript === 'function' ? reconstructPersistedTranscript() : '';
+      const candidate = (transcriptText || '').trim();
+      let finalTranscript = '';
+      if (persisted && persisted.length > (candidate.length || 0)) {
+        finalTranscript = persisted;
+      } else if (candidate && candidate.length > 0) {
+        finalTranscript = candidate;
+      } else if (persisted && persisted.length > 0) {
+        finalTranscript = persisted;
+      }
+
+      if (!finalTranscript || !finalTranscript.trim()) {
         addToast('info', 'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.');
         return;
       }
 
-      setTranscript(transcriptText.trim());
+      setTranscript(finalTranscript.trim());
+      transcriptText = finalTranscript.trim();
 
       let summary: Summary | null = null;
       let summaryError = null;
@@ -573,6 +619,36 @@ export default function RecorderComponent({
             <div className="mb-8 p-8 flex flex-col items-center justify-center relative">
               <div className="text-6xl font-semibold tracking-tighter text-slate-900 mb-3" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 {formatDuration(duration)}
+              </div>
+              {/* Persisted transcript indicator */}
+              <div className="mt-2 text-sm text-slate-600 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <div>
+                    <div className="text-xs">Transcripción guardada:</div>
+                    <div className="text-sm font-medium">
+                      {persistedInfo.count > 0 ? `${persistedInfo.count} fragmentos · ${Math.max(0, persistedInfo.text.split(/\s+/).length)} palabras` : '0 fragmentos'}
+                    </div>
+                  </div>
+                </div>
+                {persistedInfo.lastSavedAt && <div className="text-xs text-slate-500">último guardado: {new Date(persistedInfo.lastSavedAt).toLocaleTimeString()}</div>}
+                {persistedInfo.count > 0 && (
+                  <button onClick={() => {
+                    try {
+                      const blob = new Blob([persistedInfo.text || ''], { type: 'text/plain;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `transcript_${new Date().toISOString()}.txt`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                    } catch (e) {
+                      try { addToast('error', 'No se pudo descargar la transcripción.'); } catch {}
+                    }
+                  }} className="ml-2 px-2 py-1 text-xs bg-white border rounded">Descargar</button>
+                )}
               </div>
               {isRecording && (
                 <div className="flex items-center justify-center gap-2 text-red-500 font-medium text-[13px]">
