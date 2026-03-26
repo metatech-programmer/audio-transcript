@@ -124,556 +124,93 @@ export function useAudioRecorder() {
     try {
       if (!sessionId) return '';
       const arr = await getTranscriptChunksBySession(sessionId);
-      if (!Array.isArray(arr)) return '';
-      // Evitar duplicados: solo tomar el primer fragmento por índice
+      if (!Array.isArray(arr) || arr.length === 0) return '';
+      // Sort by chunkIndex and dedupe
+      const sorted = arr.slice().sort((a: any, b: any) => (Number(a.chunkIndex) || 0) - (Number(b.chunkIndex) || 0));
       const seen = new Set<number>();
-      const byIndex: Record<number, string> = {};
-      for (const it of arr) {
+      const parts: string[] = [];
+      for (const it of sorted) {
         const idx = Number(it?.chunkIndex ?? NaN);
         if (Number.isNaN(idx) || seen.has(idx)) continue;
         seen.add(idx);
-        byIndex[idx] = String(it.text || '').trim();
+        const txt = it?.text ?? it?.transcript ?? '';
+        if (txt && String(txt).trim()) parts.push(String(txt).trim());
       }
-      const keys = Object.keys(byIndex).map((k) => Number(k)).sort((a, b) => a - b);
-      const pieces: string[] = [];
-      for (const k of keys) {
-        const t = byIndex[k];
-        if (t) pieces.push(t);
-      }
-      return pieces.join(' ').trim();
+      return parts.join(' ').trim();
     } catch (e) {
       return '';
     }
   };
 
-  // Helper: read persisted transcripts and return details (text, count, lastSavedAt) from IndexedDB
+  // Helper: return details about persisted transcript (text, count, lastSavedAt)
   const readPersistedTranscriptDetails = async (sessionId: string | null) => {
     try {
-      if (!sessionId) return { text: '', count: 0, lastSavedAt: null as string | null };
+      if (!sessionId) return { text: '', count: 0, lastSavedAt: null };
       const arr = await getTranscriptChunksBySession(sessionId);
       if (!Array.isArray(arr) || arr.length === 0) return { text: '', count: 0, lastSavedAt: null };
-      const byIndex: Record<number, { text: string; createdAt?: string }> = {};
-      let lastSaved: string | null = null;
-      for (const it of arr) {
-        const idx = Number(it?.chunkIndex ?? NaN);
-        if (Number.isNaN(idx)) continue;
-        const text = String(it.text || '').trim();
-        byIndex[idx] = { text, createdAt: it?.createdAt || null };
-        if (it?.createdAt) lastSaved = it.createdAt;
-      }
-      const keys = Object.keys(byIndex).map((k) => Number(k)).sort((a, b) => a - b);
-      const pieces: string[] = [];
-      for (const k of keys) {
-        const t = byIndex[k]?.text;
-        if (t) pieces.push(t);
-      }
-      return { text: pieces.join(' ').trim(), count: keys.length, lastSavedAt: lastSaved };
-    } catch (e) {
+      const text = await readPersistedTranscript(sessionId);
+      const count = arr.length;
+      // pick most recent savedAt if available
+      const savedTimes = arr.map((x: any) => x?.savedAt).filter(Boolean);
+      const lastSavedAt = savedTimes.length ? savedTimes[savedTimes.length - 1] : null;
+      return { text, count, lastSavedAt };
+    } catch {
       return { text: '', count: 0, lastSavedAt: null };
     }
   };
 
-
-  /**
-   * Inicia la grabación, permitiendo pasar un stream personalizado (mic, tab, system)
-   */
-  const startRecording = async (
-    options?: {
-      engineMode?: 'auto' | 'browser' | 'api';
-      dialect?: string;
-      stream?: MediaStream;
-    }
-  ) => {
+  const startRecording = async (opts?: { engineMode?: 'auto' | 'browser' | 'api'; dialect?: string; stream?: MediaStream }) => {
     try {
-      setRecorderError(null);
-      const engineMode = options?.engineMode || liveEngineMode;
-      const dialect =
-        options?.dialect ||
-        selectedDialect ||
-        (recorder.language === 'es' ? 'es-ES' : 'en-US');
+      if (recorder.isRecording) return;
 
-      setLiveEngineMode(engineMode);
-      setSelectedDialect(dialect);
-
-      const SpeechRecognitionClass =
-        typeof window !== 'undefined'
-          ? (window as any).SpeechRecognition ||
-            (window as any).webkitSpeechRecognition
-          : null;
-
-      isBrowserLiveRef.current =
-        engineMode === 'browser'
-          ? Boolean(SpeechRecognitionClass)
-          : engineMode === 'api'
-          ? false
-          : Boolean(SpeechRecognitionClass);
-
-      if (engineMode === 'browser' && !SpeechRecognitionClass) {
-        setRecorderError('Browser Speech no esta disponible. Usando API fallback.');
-      }
-
-      setLiveEngine(isBrowserLiveRef.current ? 'browser' : 'api');
-
-      // Permitir pasar un stream personalizado (mic, tab, system)
-      let stream: MediaStream;
-      if (options?.stream) {
-        stream = options.stream;
-      } else {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        });
-      }
-
+      const providedStream = opts?.stream;
+      const stream = providedStream ?? (await navigator.mediaDevices.getUserMedia({ audio: true }));
       streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
-      });
 
-      mediaRecorderRef.current = mediaRecorder;
+      const MediaRec = typeof MediaRecorder !== 'undefined' ? MediaRecorder : (window as any).MediaRecorder;
+      const mr = new MediaRec(stream, { mimeType: 'audio/webm;codecs=opus' });
+      mediaRecorderRef.current = mr;
       audioChunksRef.current = [];
-      setLiveStatus('listening');
-      setLastChunkText('');
-      setProcessedChunks(0);
 
-      // initialize session ID and rotation pointer
-      sessionIdRef.current = generateId();
-      lastRotateIndexRef.current = 0;
-      // Propagar sessionId a window.__recorderController para el polling UI
-      if (typeof window !== 'undefined') {
-        if (!(window as any).__recorderController) (window as any).__recorderController = {};
-        (window as any).__recorderController.sessionId = sessionIdRef.current;
-      }
-
-      // Define rotation/send function (chunked uploader) and store on ref so stopRecording can call it
-      rotateFuncRef.current = async (final: boolean) => {
-        try {
-          const start = lastRotateIndexRef.current || 0;
-          const end = audioChunksRef.current.length;
-          if (end <= start) return;
-
-          // Maximum batch size: 3 MB to avoid serverless payload limits
-          const MAX_BYTES = 3 * 1024 * 1024;
-
-          // Persist transcript piece to IndexedDB
-          const persistTranscript = async (idx: number, text: string, status = 'done') => {
-            try {
-              if (!sessionIdRef.current) return;
-              await saveTranscriptChunk({
-                id: `${sessionIdRef.current}:${idx}`,
-                sessionId: sessionIdRef.current,
-                chunkIndex: idx,
-                text,
-                status,
-                createdAt: new Date().toISOString(),
-              });
-            } catch {}
-          };
-
-          // Ensure sessionId exists
-          if (!sessionIdRef.current) {
-            console.warn('rotateFunc: missing sessionId — generating temporary id');
-            sessionIdRef.current = String(Date.now());
-          }
-
-          // Build and send batches without exceeding MAX_BYTES
-          let batch: Blob[] = [];
-          let batchSize = 0;
-          let batchStartIndex = start;
-
-          const flushBatch = async (batchChunks: Blob[], batchStart: number, batchEnd: number, isFinal: boolean) => {
-            if (!batchChunks || batchChunks.length === 0) return true;
-            // Enviar SIEMPRE el audio acumulado hasta el momento (todos los blobs grabados)
-            const fullBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-
-            if (!fullBlob || fullBlob.size === 0) {
-              // save empty marker
-              try {
-                await saveFailedChunk({
-                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}:empty`,
-                  sessionId: sessionIdRef.current || '',
-                  chunkIndex: batchStart,
-                  blob: fullBlob,
-                  final: isFinal,
-                  language: recorder.language,
-                  createdAt: new Date().toISOString(),
-                } as any);
-                const all = await getAllFailedChunks();
-                setQueuedCount(all.length || 0);
-              } catch {
-                await persistTranscript(batchStart, '', 'failed-empty');
-              }
-              return false;
-            }
-
-            // Log y validación de tamaño
-            try {
-              console.debug('flushBatch: fullBlob', { size: fullBlob.size, type: fullBlob.type, batchStart, batchEnd, isFinal });
-            } catch {}
-
-            const MIN_BYTES = 1000;
-            if (fullBlob.size < MIN_BYTES) {
-              console.warn('flushBatch: skipping tiny fullBlob', { size: fullBlob.size, MIN_BYTES });
-              return true;
-            }
-
-            const form = new FormData();
-            form.append('audio', fullBlob, `chunk_${batchStart}_${batchEnd}.webm`);
-            form.append('sessionId', sessionIdRef.current || '');
-            form.append('chunkIndex', String(batchStart));
-            form.append('final', isFinal ? '1' : '0');
-            form.append('language', recorder.language);
-
-            try {
-
-              const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
-              if (resp.ok) {
-                const payload = await resp.json();
-                const text = payload.text || '';
-                await persistTranscript(batchStart, text, 'done');
-                if (text && text.trim()) {
-                  transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
-                  setTranscript(transcriptRef.current);
-                }
-                // advance rotation pointer
-                lastRotateIndexRef.current = batchEnd;
-                setProcessedChunks(lastRotateIndexRef.current);
-                return true;
-              }
-
-              // Manejo explícito de error 413 (Request Entity Too Large)
-              if (resp.status === 413) {
-                // Guardar el chunk como fallido y mostrar advertencia
-                await saveFailedChunk({
-                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
-                  sessionId: sessionIdRef.current || '',
-                  chunkIndex: batchStart,
-                  blob: fullBlob,
-                  final: isFinal,
-                  language: recorder.language,
-                } as any);
-                const all = await getAllFailedChunks();
-                setQueuedCount(all.length || 0);
-                // Mostrar advertencia al usuario
-                if (typeof window !== 'undefined') {
-                  window.alert('El fragmento de audio es demasiado grande para ser procesado (413 Request Entity Too Large). Intenta reducir la duración o calidad del audio.');
-                }
-                console.warn('Chunk upload failed: 413 Request Entity Too Large');
-                return false;
-              }
-
-              // non-ok response -> attempt a re-encode fallback for invalid media
-              const errText = await resp.text().catch(() => '');
-              // If provider reports invalid media, try re-encoding to WAV and retry once
-              if (resp.status === 400 && /could not process file|invalid_request_error/i.test(errText)) {
-                try {
-                  const wavBlob = await transcodeBlobToWav(fullBlob);
-                  const retryForm = new FormData();
-                  retryForm.append('audio', wavBlob, `chunk_${batchStart}_${batchEnd}.wav`);
-                  retryForm.append('sessionId', sessionIdRef.current || '');
-                  retryForm.append('chunkIndex', String(batchStart));
-                  retryForm.append('final', isFinal ? '1' : '0');
-                  retryForm.append('language', recorder.language);
-
-                  const retryResp = await fetch('/api/transcribe-chunk', { method: 'POST', body: retryForm });
-                  if (retryResp.ok) {
-                    const payload = await retryResp.json();
-                    const text = payload.text || '';
-                    await persistTranscript(batchStart, text, 'done');
-                    if (text && text.trim()) {
-                      transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
-                      setTranscript(transcriptRef.current);
-                    }
-                    lastRotateIndexRef.current = batchEnd;
-                    setProcessedChunks(lastRotateIndexRef.current);
-                    return true;
-                  }
-                  const retryErr = await retryResp.text().catch(() => '');
-                  console.warn('Chunk retry after transcode failed:', retryResp.status, retryErr);
-                } catch (re) {
-                  console.debug('Transcode+retry failed', re);
-                }
-              }
-
-              try {
-                await saveFailedChunk({
-                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
-                  sessionId: sessionIdRef.current || '',
-                  chunkIndex: batchStart,
-                  blob: fullBlob,
-                  final: isFinal,
-                  language: recorder.language,
-                } as any);
-                const all = await getAllFailedChunks();
-                setQueuedCount(all.length || 0);
-              } catch (e) {
-                await persistTranscript(batchStart, '', 'failed');
-              }
-              console.warn('Chunk upload failed:', resp.status, errText);
-              return false;
-            } catch (e) {
-              // Network or fetch error -> queue for retry
-              try {
-                await saveFailedChunk({
-                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
-                  sessionId: sessionIdRef.current || '',
-                  chunkIndex: batchStart,
-                  blob: fullBlob,
-                  final: isFinal,
-                  language: recorder.language,
-                } as any);
-                const all = await getAllFailedChunks();
-                setQueuedCount(all.length || 0);
-              } catch {
-                await persistTranscript(batchStart, '', 'failed');
-              }
-              console.debug('Chunk upload exception', e);
-              return false;
-            }
-          };
-
-          for (let i = start; i < end; i++) {
-            const chunk = audioChunksRef.current[i];
-            // Defensive: skip any missing chunks to avoid pushing `undefined` into batch
-            if (!chunk) {
-              // Advance pointer if holes exist
-              batchStartIndex = Math.max(batchStartIndex, i + 1);
-              continue;
-            }
-
-            const size = (chunk as Blob).size || 0;
-
-            // Skip tiny individual chunks which may be rejected by the transcriber
-            const MIN_CHUNK_BYTES = 1000;
-            if (size < MIN_CHUNK_BYTES) {
-              // Advance pointer if we skip this tiny chunk
-              batchStartIndex = Math.max(batchStartIndex, i + 1);
-              continue;
-            }
-
-            // If adding this chunk would exceed MAX_BYTES and we have a batch to send, flush first
-            if (batchSize + size > MAX_BYTES && batch.length > 0) {
-              const batchEnd = i; // exclusive
-              const ok = await flushBatch(batch, batchStartIndex, batchEnd, false);
-              if (!ok) {
-                // stop attempting further batches for now
-                return;
-              }
-              // reset batch
-              batch = [];
-              batchSize = 0;
-              batchStartIndex = i;
-            }
-
-            batch.push(chunk as Blob);
-            batchSize += size;
-          }
-
-          // flush remaining batch
-          if (batch.length > 0) {
-            const batchEnd = end;
-            await flushBatch(batch, batchStartIndex, batchEnd, final);
-          }
-        } catch (err) {
-          console.debug('rotateAndSendChunk (chunked) error', err);
-        }
+      mr.ondataavailable = (ev: BlobEvent) => {
+        if (ev.data && ev.data.size > 0) audioChunksRef.current.push(ev.data);
       };
 
-      // Start rotation timer: flush regularly (30s) to keep chunk sizes small
-      rotateTimerRef.current = setInterval(() => {
-        void rotateFuncRef.current?.(false);
-      }, 30 * 1000);
-
-      // Setup microphone level meter for real-time user feedback.
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      const updateAudioLevel = () => {
-        if (!analyserRef.current) {
-          return;
-        }
-
-        analyserRef.current.getByteTimeDomainData(dataArray);
-
-        let sumSquares = 0;
-        for (let i = 0; i < dataArray.length; i += 1) {
-          const sample = dataArray[i] ?? 128;
-          const normalized = (sample - 128) / 128;
-          sumSquares += normalized * normalized;
-        }
-
-        const rms = Math.sqrt(sumSquares / dataArray.length);
-        const level = Math.min(100, Math.round(rms * 220));
-        setAudioLevel(level);
-
-        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+      mr.onerror = (event: any) => {
+        setRecorderError(`Recording error: ${event?.error ?? String(event)}`);
       };
 
-      updateAudioLevel();
-
-      if (SpeechRecognitionClass && isBrowserLiveRef.current) {
-        const recognition = new SpeechRecognitionClass();
-        recognition.lang = dialect;
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-
-        recognition.onstart = () => {
-          setLiveStatus('transcribing');
+      // Simple audio level meter (best-effort)
+      try {
+        const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext) as any;
+        audioContextRef.current = new AudioCtx();
+        const src = audioContextRef.current!.createMediaStreamSource(stream as MediaStream);
+        analyserRef.current = audioContextRef.current!.createAnalyser();
+        analyserRef.current!.fftSize = 256;
+        src.connect(analyserRef.current!);
+        const tick = () => {
+          if (!analyserRef.current) return;
+          const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(data);
+          const level = data.reduce((a, b) => a + b, 0) / data.length;
+          setAudioLevel(level || 0);
+          animationFrameRef.current = requestAnimationFrame(tick);
         };
+        tick();
+      } catch {}
 
-        recognition.onresult = (event: any) => {
-          let combined = '';
-          for (let i = 0; i < event.results.length; i += 1) {
-            const segment = event.results[i]?.[0]?.transcript || '';
-            combined += `${segment} `;
-          }
-
-          const text = combined.trim();
-          if (text) {
-            transcriptRef.current = text;
-            setTranscript(text);
-            setLastChunkText(text.split(/\s+/).slice(-8).join(' '));
-            setProcessedChunks((count) => count + 1);
-            setLiveStatus('updated');
-          }
-        };
-
-        recognition.onerror = () => {
-          setLiveStatus('listening');
-        };
-
-        recognition.onend = () => {
-          if (useAppStore.getState().recorder.isRecording) {
-            try {
-              recognition.start();
-            } catch {
-              setLiveStatus('listening');
-            }
-          }
-        };
-
-        speechRecognitionRef.current = recognition;
-        try {
-          recognition.start();
-        } catch {
-          speechRecognitionRef.current = null;
-          isBrowserLiveRef.current = false;
-          setLiveEngine('api');
-        }
-      }
-
-      mediaRecorder.ondataavailable = async (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-
-          if (isBrowserLiveRef.current) {
-            return;
-          }
-
-          // Subida estrictamente secuencial
-          if (isUploadingRef.current) return;
-          isUploadingRef.current = true;
-          setIsLiveTranscribing(true);
-          setLiveStatus('transcribing');
-
-          try {
-            // Solo sube el siguiente chunk no procesado
-            const idx = processedChunksRef.current;
-            const chunk = audioChunksRef.current[idx];
-            if (!chunk) {
-              setIsLiveTranscribing(false);
-              setLiveStatus('listening');
-              isUploadingRef.current = false;
-              return;
-            }
-            if (chunk.size < 1000) {
-              processedChunksRef.current++;
-              setProcessedChunks(processedChunksRef.current);
-              setIsLiveTranscribing(false);
-              setLiveStatus('listening');
-              isUploadingRef.current = false;
-              return;
-            }
-            // Subir chunk individual
-            const form = new FormData();
-            form.append('audio', chunk, `chunk_${idx}.webm`);
-            form.append('sessionId', sessionIdRef.current || '');
-            form.append('chunkIndex', String(idx));
-            form.append('final', '0');
-            form.append('language', recorder.language);
-            let ok = false;
-            let text = '';
-            try {
-              const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
-              if (resp.ok) {
-                const payload = await resp.json();
-                text = payload.text || '';
-                ok = true;
-              }
-            } catch {}
-            if (ok && text.trim()) {
-              transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
-              setTranscript(transcriptRef.current);
-              setLastChunkText(transcriptRef.current.split(/\s+/).slice(-8).join(' '));
-              // Liberar memoria del chunk subido
-              audioChunksRef.current[idx] = null as any;
-              processedChunksRef.current++;
-              setProcessedChunks(processedChunksRef.current);
-              setLiveStatus('updated');
-            } else {
-              // Reintentos limitados
-              const key = `${sessionIdRef.current}:${idx}`;
-              retryCountsRef.current[key] = (retryCountsRef.current[key] || 0) + 1;
-              if (retryCountsRef.current[key] < 3) {
-                // Reintentar en el siguiente ciclo
-                setTimeout(() => {
-                  isUploadingRef.current = false;
-                  mediaRecorder.ondataavailable!(event);
-                }, 500);
-                return;
-              } else {
-                // Eliminar chunk tras 3 fallos
-                audioChunksRef.current[idx] = null as any;
-                processedChunksRef.current++;
-                setProcessedChunks(processedChunksRef.current);
-                setLiveStatus('listening');
-              }
-            }
-          } finally {
-            setIsLiveTranscribing(false);
-            isUploadingRef.current = false;
-          }
-        }
-      };
-
-      mediaRecorder.onerror = (event) => {
-        setRecorderError(`Recording error: ${event.error}`);
-      };
-
-      mediaRecorder.start(800); // Capture data every 0.8 seconds para chunks más pequeños
+      mr.start(800);
       setRecording(true);
-      transcriptRef.current = ''; // Reset transcript for new recording
+      transcriptRef.current = '';
 
-      // Start timer
       let seconds = 0;
+      if (timerRef.current) clearInterval(timerRef.current as any);
       timerRef.current = setInterval(() => {
         seconds += 1;
         setDuration(seconds);
       }, 1000);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to start recording';
+      const message = error instanceof Error ? error.message : 'Failed to start recording';
       setRecorderError(message);
       console.error('Recording error:', error);
     }

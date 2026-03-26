@@ -1,10 +1,4 @@
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '8mb', // Ajusta este valor según lo que soporte tu backend
-    },
-  },
-};
+// Eliminado config export: Next.js 16+ ignora esta configuración. Si necesitas aumentar el límite de tamaño, usa la nueva convención de configuración de rutas.
 import { NextRequest, NextResponse } from 'next/server';
 
 function normalizeFilenameByMimeType(mimeType: string): string {
