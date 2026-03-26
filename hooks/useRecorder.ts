@@ -851,7 +851,15 @@ export function useAudioRecorder() {
     _running = true;
     setRetrying(true);
     try {
-      const items = await getAllFailedChunks();
+      let items = await getAllFailedChunks();
+      // Elimina automáticamente cada grupo de 5 chunks fallidos
+      if (items.length >= 5) {
+        const toDelete = items.slice(0, Math.floor(items.length / 5) * 5);
+        for (const chunk of toDelete) {
+          await deleteFailedChunk(chunk.id);
+        }
+        items = await getAllFailedChunks();
+      }
       setQueuedCount(items.length || 0);
       for (const item of items) {
         try {

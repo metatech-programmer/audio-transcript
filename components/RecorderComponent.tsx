@@ -687,11 +687,25 @@ export default function RecorderComponent({
               )}
             </div>
 
+
             {/* Sound Waves Animation */}
             {isRecording && (
-              <div className="mb-8 rounded-xl bg-[#F9F9FA] border border-[#EAEAEB] p-6 h-28 flex items-center justify-center">
-                <SoundWaves isActive={isRecording} audioLevel={audioLevel} />
-              </div>
+              <>
+                <div className="mb-4 rounded-xl bg-[#F9F9FA] border border-[#EAEAEB] p-6 h-28 flex items-center justify-center">
+                  <SoundWaves isActive={isRecording} audioLevel={audioLevel} />
+                </div>
+                {/* Real-time Transcript Box */}
+                <div className="mb-8">
+                  <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
+                    <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                      <FileText size={14} className="text-slate-500" /> Transcripción en tiempo real
+                    </h3>
+                    <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
+                      {persistedInfo.text ? persistedInfo.text : <span className="italic text-slate-400">Esperando audio...</span>}
+                    </p>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Action Buttons */}
