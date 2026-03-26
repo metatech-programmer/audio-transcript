@@ -1,3 +1,10 @@
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '8mb', // Ajusta este valor según lo que soporte tu backend
+    },
+  },
+};
 import { NextRequest, NextResponse } from 'next/server';
 
 function normalizeFilenameByMimeType(mimeType: string): string {

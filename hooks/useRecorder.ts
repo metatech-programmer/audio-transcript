@@ -225,6 +225,7 @@ export function useAudioRecorder() {
       }
 
       streamRef.current = stream;
+      // Iniciar MediaRecorder con timeslice de 2000 ms (2 segundos)
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
       });
@@ -244,7 +245,7 @@ export function useAudioRecorder() {
         (window as any).__recorderController.sessionId = sessionIdRef.current;
       }
 
-      // Define rotation/send function (chunked uploader) and store on ref so stopRecording can call it
+      // Define rotation/send function (chunked uploader) y guardar en ref para stopRecording
       rotateFuncRef.current = async (final: boolean) => {
         try {
           const start = lastRotateIndexRef.current || 0;
@@ -324,6 +325,7 @@ export function useAudioRecorder() {
             form.append('language', recorder.language);
 
             try {
+
               const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
               if (resp.ok) {
                 const payload = await resp.json();
@@ -337,6 +339,27 @@ export function useAudioRecorder() {
                 lastRotateIndexRef.current = batchEnd;
                 setProcessedChunks(lastRotateIndexRef.current);
                 return true;
+              }
+
+              // Manejo explícito de error 413 (Request Entity Too Large)
+              if (resp.status === 413) {
+                // Guardar el chunk como fallido y mostrar advertencia
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob: fullBlob,
+                  final: isFinal,
+                  language: recorder.language,
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+                // Mostrar advertencia al usuario
+                if (typeof window !== 'undefined') {
+                  window.alert('El fragmento de audio es demasiado grande para ser procesado (413 Request Entity Too Large). Intenta reducir la duración o calidad del audio.');
+                }
+                console.warn('Chunk upload failed: 413 Request Entity Too Large');
+                return false;
               }
 
               // non-ok response -> attempt a re-encode fallback for invalid media
@@ -456,10 +479,14 @@ export function useAudioRecorder() {
         }
       };
 
-      // Start rotation timer: flush regularly (30s) to keep chunk sizes small
+
+      // Iniciar timer de rotación cada 2 segundos para enviar los chunks frecuentemente
       rotateTimerRef.current = setInterval(() => {
         void rotateFuncRef.current?.(false);
-      }, 30 * 1000);
+      }, 2 * 1000);
+
+      // Iniciar el MediaRecorder con timeslice de 2 segundos
+      mediaRecorder.start(2000);
 
       // Setup microphone level meter for real-time user feedback.
       const audioContext = new AudioContext();
