@@ -485,8 +485,12 @@ export function useAudioRecorder() {
         void rotateFuncRef.current?.(false);
       }, 2 * 1000);
 
-      // Iniciar el MediaRecorder con timeslice de 2 segundos
-      mediaRecorder.start(2000);
+      // Iniciar el MediaRecorder con timeslice de 2 segundos solo si está inactivo
+      if (mediaRecorder.state === 'inactive') {
+        mediaRecorder.start(2000);
+      } else {
+        console.warn('MediaRecorder ya está grabando, no se vuelve a iniciar.');
+      }
 
       // Setup microphone level meter for real-time user feedback.
       const audioContext = new AudioContext();
