@@ -68,6 +68,10 @@ export async function POST(request: NextRequest) {
 
     const prompt = getFinalPrompt(consolidatedInput, language);
 
+    let content = '';
+    let summary;
+    let groqFailed = false;
+    // --- PRIMER INTENTO: GROQ ---
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -87,32 +91,68 @@ export async function POST(request: NextRequest) {
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Groq LLM error:', error);
-      return NextResponse.json(
-        { error: 'Summarization failed', details: error },
-        { status: response.status }
-      );
+    if (response.ok) {
+      const result = await response.json();
+      content = result.choices[0]?.message?.content || '';
+      try {
+        summary = normalizeSummary(JSON.parse(content));
+      } catch {
+        summary = normalizeSummary({
+          executiveSummary: content,
+          keyPoints: [],
+          lectureNotes: '',
+          actionableInsights: [],
+        });
+      }
+      return NextResponse.json({ summary });
+    } else {
+      groqFailed = true;
     }
 
-    const result = await response.json();
-    const content = result.choices[0]?.message?.content || '';
-
-    // Parse JSON from response
-    let summary;
+    // --- SEGUNDO INTENTO: GEMINI 2.5 FLASH ---
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
+      const error = await response.text();
+      return NextResponse.json(
+        { error: 'Summarization failed (Groq and Gemini not available)', details: error },
+        { status: 500 }
+      );
+    }
+    // Gemini API expects a different payload
+    const geminiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + geminiApiKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 2500 }
+      })
+    });
+    if (!geminiRes.ok) {
+      const error = await geminiRes.text();
+      return NextResponse.json(
+        { error: 'Summarization failed (Groq and Gemini)', details: error },
+        { status: geminiRes.status }
+      );
+    }
+    const geminiData = await geminiRes.json();
+    // Gemini response parsing
+    let geminiText = '';
     try {
-      summary = normalizeSummary(JSON.parse(content));
+      geminiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } catch {}
+    if (!geminiText) {
+      geminiText = JSON.stringify(geminiData);
+    }
+    try {
+      summary = normalizeSummary(JSON.parse(geminiText));
     } catch {
-      // Fallback if parsing fails
       summary = normalizeSummary({
-        executiveSummary: content,
+        executiveSummary: geminiText,
         keyPoints: [],
         lectureNotes: '',
         actionableInsights: [],
       });
     }
-
     return NextResponse.json({ summary });
   } catch (error) {
     console.error('Summarization error:', error);
