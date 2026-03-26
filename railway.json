@@ -1,0 +1,17 @@
+{
+  "build": {
+    "command": "npm run build"
+  },
+  "deploy": {
+    "command": "npm start",
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "start": {
+    "command": "npm start",
+    "env": {
+      "NODE_ENV": "production"
+    }
+  }
+}

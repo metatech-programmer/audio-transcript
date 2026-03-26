@@ -225,7 +225,6 @@ export function useAudioRecorder() {
       }
 
       streamRef.current = stream;
-      // Iniciar MediaRecorder con timeslice de 2000 ms (2 segundos)
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
       });
@@ -245,26 +244,15 @@ export function useAudioRecorder() {
         (window as any).__recorderController.sessionId = sessionIdRef.current;
       }
 
-      // Define rotation/send function (chunked uploader) y guardar en ref para stopRecording
+      // Define rotation/send function (chunked uploader) and store on ref so stopRecording can call it
       rotateFuncRef.current = async (final: boolean) => {
         try {
           const start = lastRotateIndexRef.current || 0;
           const end = audioChunksRef.current.length;
           if (end <= start) return;
 
-          // Only send the latest chunk (not cumulative)
-          const chunkIndex = end - 1;
-          const chunk = audioChunksRef.current[chunkIndex];
-          if (!chunk) return;
-
-          const size = chunk.size || 0;
-          const MIN_CHUNK_BYTES = 1000;
-          if (size < MIN_CHUNK_BYTES) {
-            // Skip tiny chunks
-            lastRotateIndexRef.current = end;
-            setProcessedChunks(end);
-            return;
-          }
+          // Maximum batch size: 3 MB to avoid serverless payload limits
+          const MAX_BYTES = 3 * 1024 * 1024;
 
           // Persist transcript piece to IndexedDB
           const persistTranscript = async (idx: number, text: string, status = 'done') => {
@@ -287,132 +275,213 @@ export function useAudioRecorder() {
             sessionIdRef.current = String(Date.now());
           }
 
-          const form = new FormData();
-          form.append('audio', chunk, `chunk_${chunkIndex}.webm`);
-          form.append('sessionId', sessionIdRef.current || '');
-          form.append('chunkIndex', String(chunkIndex));
-          form.append('final', final ? '1' : '0');
-          form.append('language', recorder.language);
+          // Build and send batches without exceeding MAX_BYTES
+          let batch: Blob[] = [];
+          let batchSize = 0;
+          let batchStartIndex = start;
 
-          try {
-            const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
-            if (resp.ok) {
-              const payload = await resp.json();
-              const text = payload.text || '';
-              await persistTranscript(chunkIndex, text, 'done');
-              if (text && text.trim()) {
-                transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
-                setTranscript(transcriptRef.current);
-                setLastChunkText(text.split(/\s+/).slice(-8).join(' '));
-              }
-              lastRotateIndexRef.current = end;
-              setProcessedChunks(end);
-              return;
-            }
+          const flushBatch = async (batchChunks: Blob[], batchStart: number, batchEnd: number, isFinal: boolean) => {
+            if (!batchChunks || batchChunks.length === 0) return true;
+            // Enviar SIEMPRE el audio acumulado hasta el momento (todos los blobs grabados)
+            const fullBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
 
-            // Handle 413 error (Request Entity Too Large)
-            if (resp.status === 413) {
-              await saveFailedChunk({
-                id: `${sessionIdRef.current}:${chunkIndex}:${Date.now()}`,
-                sessionId: sessionIdRef.current || '',
-                chunkIndex: chunkIndex,
-                blob: chunk,
-                final: final,
-                language: recorder.language,
-              } as any);
-              const all = await getAllFailedChunks();
-              setQueuedCount(all.length || 0);
-              if (typeof window !== 'undefined') {
-                window.alert('El fragmento de audio es demasiado grande para ser procesado (413 Request Entity Too Large). Intenta reducir la duración o calidad del audio.');
-              }
-              console.warn('Chunk upload failed: 413 Request Entity Too Large');
-              lastRotateIndexRef.current = end;
-              setProcessedChunks(end);
-              return;
-            }
-
-            // Try re-encoding to WAV and retry once if invalid media
-            const errText = await resp.text().catch(() => '');
-            if (resp.status === 400 && /could not process file|invalid_request_error/i.test(errText)) {
+            if (!fullBlob || fullBlob.size === 0) {
+              // save empty marker
               try {
-                const wavBlob = await transcodeBlobToWav(chunk);
-                const retryForm = new FormData();
-                retryForm.append('audio', wavBlob, `chunk_${chunkIndex}.wav`);
-                retryForm.append('sessionId', sessionIdRef.current || '');
-                retryForm.append('chunkIndex', String(chunkIndex));
-                retryForm.append('final', final ? '1' : '0');
-                retryForm.append('language', recorder.language);
-
-                const retryResp = await fetch('/api/transcribe-chunk', { method: 'POST', body: retryForm });
-                if (retryResp.ok) {
-                  const payload = await retryResp.json();
-                  const text = payload.text || '';
-                  await persistTranscript(chunkIndex, text, 'done');
-                  if (text && text.trim()) {
-                    transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
-                    setTranscript(transcriptRef.current);
-                    setLastChunkText(text.split(/\s+/).slice(-8).join(' '));
-                  }
-                  lastRotateIndexRef.current = end;
-                  setProcessedChunks(end);
-                  return;
-                }
-                const retryErr = await retryResp.text().catch(() => '');
-                console.warn('Chunk retry after transcode failed:', retryResp.status, retryErr);
-              } catch (re) {
-                console.debug('Transcode+retry failed', re);
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}:empty`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob: fullBlob,
+                  final: isFinal,
+                  language: recorder.language,
+                  createdAt: new Date().toISOString(),
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+              } catch {
+                await persistTranscript(batchStart, '', 'failed-empty');
               }
+              return false;
             }
 
-            // Save failed chunk
-            await saveFailedChunk({
-              id: `${sessionIdRef.current}:${chunkIndex}:${Date.now()}`,
-              sessionId: sessionIdRef.current || '',
-              chunkIndex: chunkIndex,
-              blob: chunk,
-              final: final,
-              language: recorder.language,
-            } as any);
-            const all = await getAllFailedChunks();
-            setQueuedCount(all.length || 0);
-            lastRotateIndexRef.current = end;
-            setProcessedChunks(end);
-            console.warn('Chunk upload failed:', resp.status, errText);
-            return;
-          } catch (e) {
-            // Network or fetch error -> queue for retry
-            await saveFailedChunk({
-              id: `${sessionIdRef.current}:${chunkIndex}:${Date.now()}`,
-              sessionId: sessionIdRef.current || '',
-              chunkIndex: chunkIndex,
-              blob: chunk,
-              final: final,
-              language: recorder.language,
-            } as any);
-            const all = await getAllFailedChunks();
-            setQueuedCount(all.length || 0);
-            lastRotateIndexRef.current = end;
-            setProcessedChunks(end);
-            console.debug('Chunk upload exception', e);
-            return;
+            // Log y validación de tamaño
+            try {
+              console.debug('flushBatch: fullBlob', { size: fullBlob.size, type: fullBlob.type, batchStart, batchEnd, isFinal });
+            } catch {}
+
+            const MIN_BYTES = 1000;
+            if (fullBlob.size < MIN_BYTES) {
+              console.warn('flushBatch: skipping tiny fullBlob', { size: fullBlob.size, MIN_BYTES });
+              return true;
+            }
+
+            const form = new FormData();
+            form.append('audio', fullBlob, `chunk_${batchStart}_${batchEnd}.webm`);
+            form.append('sessionId', sessionIdRef.current || '');
+            form.append('chunkIndex', String(batchStart));
+            form.append('final', isFinal ? '1' : '0');
+            form.append('language', recorder.language);
+
+            try {
+
+              const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
+              if (resp.ok) {
+                const payload = await resp.json();
+                const text = payload.text || '';
+                await persistTranscript(batchStart, text, 'done');
+                if (text && text.trim()) {
+                  transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
+                  setTranscript(transcriptRef.current);
+                }
+                // advance rotation pointer
+                lastRotateIndexRef.current = batchEnd;
+                setProcessedChunks(lastRotateIndexRef.current);
+                return true;
+              }
+
+              // Manejo explícito de error 413 (Request Entity Too Large)
+              if (resp.status === 413) {
+                // Guardar el chunk como fallido y mostrar advertencia
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob: fullBlob,
+                  final: isFinal,
+                  language: recorder.language,
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+                // Mostrar advertencia al usuario
+                if (typeof window !== 'undefined') {
+                  window.alert('El fragmento de audio es demasiado grande para ser procesado (413 Request Entity Too Large). Intenta reducir la duración o calidad del audio.');
+                }
+                console.warn('Chunk upload failed: 413 Request Entity Too Large');
+                return false;
+              }
+
+              // non-ok response -> attempt a re-encode fallback for invalid media
+              const errText = await resp.text().catch(() => '');
+              // If provider reports invalid media, try re-encoding to WAV and retry once
+              if (resp.status === 400 && /could not process file|invalid_request_error/i.test(errText)) {
+                try {
+                  const wavBlob = await transcodeBlobToWav(fullBlob);
+                  const retryForm = new FormData();
+                  retryForm.append('audio', wavBlob, `chunk_${batchStart}_${batchEnd}.wav`);
+                  retryForm.append('sessionId', sessionIdRef.current || '');
+                  retryForm.append('chunkIndex', String(batchStart));
+                  retryForm.append('final', isFinal ? '1' : '0');
+                  retryForm.append('language', recorder.language);
+
+                  const retryResp = await fetch('/api/transcribe-chunk', { method: 'POST', body: retryForm });
+                  if (retryResp.ok) {
+                    const payload = await retryResp.json();
+                    const text = payload.text || '';
+                    await persistTranscript(batchStart, text, 'done');
+                    if (text && text.trim()) {
+                      transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
+                      setTranscript(transcriptRef.current);
+                    }
+                    lastRotateIndexRef.current = batchEnd;
+                    setProcessedChunks(lastRotateIndexRef.current);
+                    return true;
+                  }
+                  const retryErr = await retryResp.text().catch(() => '');
+                  console.warn('Chunk retry after transcode failed:', retryResp.status, retryErr);
+                } catch (re) {
+                  console.debug('Transcode+retry failed', re);
+                }
+              }
+
+              try {
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob: fullBlob,
+                  final: isFinal,
+                  language: recorder.language,
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+              } catch (e) {
+                await persistTranscript(batchStart, '', 'failed');
+              }
+              console.warn('Chunk upload failed:', resp.status, errText);
+              return false;
+            } catch (e) {
+              // Network or fetch error -> queue for retry
+              try {
+                await saveFailedChunk({
+                  id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
+                  sessionId: sessionIdRef.current || '',
+                  chunkIndex: batchStart,
+                  blob: fullBlob,
+                  final: isFinal,
+                  language: recorder.language,
+                } as any);
+                const all = await getAllFailedChunks();
+                setQueuedCount(all.length || 0);
+              } catch {
+                await persistTranscript(batchStart, '', 'failed');
+              }
+              console.debug('Chunk upload exception', e);
+              return false;
+            }
+          };
+
+          for (let i = start; i < end; i++) {
+            const chunk = audioChunksRef.current[i];
+            // Defensive: skip any missing chunks to avoid pushing `undefined` into batch
+            if (!chunk) {
+              // Advance pointer if holes exist
+              batchStartIndex = Math.max(batchStartIndex, i + 1);
+              continue;
+            }
+
+            const size = (chunk as Blob).size || 0;
+
+            // Skip tiny individual chunks which may be rejected by the transcriber
+            const MIN_CHUNK_BYTES = 1000;
+            if (size < MIN_CHUNK_BYTES) {
+              // Advance pointer if we skip this tiny chunk
+              batchStartIndex = Math.max(batchStartIndex, i + 1);
+              continue;
+            }
+
+            // If adding this chunk would exceed MAX_BYTES and we have a batch to send, flush first
+            if (batchSize + size > MAX_BYTES && batch.length > 0) {
+              const batchEnd = i; // exclusive
+              const ok = await flushBatch(batch, batchStartIndex, batchEnd, false);
+              if (!ok) {
+                // stop attempting further batches for now
+                return;
+              }
+              // reset batch
+              batch = [];
+              batchSize = 0;
+              batchStartIndex = i;
+            }
+
+            batch.push(chunk as Blob);
+            batchSize += size;
+          }
+
+          // flush remaining batch
+          if (batch.length > 0) {
+            const batchEnd = end;
+            await flushBatch(batch, batchStartIndex, batchEnd, final);
           }
         } catch (err) {
-          console.debug('rotateAndSendChunk (single) error', err);
+          console.debug('rotateAndSendChunk (chunked) error', err);
         }
       };
 
-
-      // Iniciar timer de rotación cada 2 segundos para enviar los chunks frecuentemente
+      // Start rotation timer: flush regularly (30s) to keep chunk sizes small
       rotateTimerRef.current = setInterval(() => {
         void rotateFuncRef.current?.(false);
-      }, 2 * 1000);
-
-      // Iniciar el MediaRecorder con timeslice de 2 segundos solo si está inactivo
-      if (mediaRecorder.state === 'inactive') {
-        mediaRecorder.start(2000);
-      } else {
-        console.warn('MediaRecorder ya está grabando, no se vuelve a iniciar.');
-      }
+      }, 30 * 1000);
 
       // Setup microphone level meter for real-time user feedback.
       const audioContext = new AudioContext();
