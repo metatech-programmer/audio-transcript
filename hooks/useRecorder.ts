@@ -86,6 +86,10 @@ export function useAudioRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const processedChunksRef = useRef<number>(0);
+  // Para evitar subidas simultáneas
+  const isUploadingRef = useRef<boolean>(false);
+  // Para llevar la cuenta de reintentos por chunk
+  const retryCountsRef = useRef<Record<string, number>>({});
   const lastRotateIndexRef = useRef<number>(0);
   const sessionIdRef = useRef<string | null>(null);
   const rotateTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -577,68 +581,78 @@ export function useAudioRecorder() {
             return;
           }
 
-          // Skip if another chunk is still in-flight to avoid overlapping requests.
-          if (isChunkTranscribingRef.current) {
-            return;
-          }
-
-          isChunkTranscribingRef.current = true;
+          // Subida estrictamente secuencial
+          if (isUploadingRef.current) return;
+          isUploadingRef.current = true;
           setIsLiveTranscribing(true);
           setLiveStatus('transcribing');
 
-          // Transcribe only the new/unprocessed chunks to avoid overlapping text.
           try {
-            const startIndex = processedChunksRef.current;
-            const newChunks = audioChunksRef.current.slice(startIndex);
-            if (newChunks.length === 0) {
-              isChunkTranscribingRef.current = false;
+            // Solo sube el siguiente chunk no procesado
+            const idx = processedChunksRef.current;
+            const chunk = audioChunksRef.current[idx];
+            if (!chunk) {
               setIsLiveTranscribing(false);
               setLiveStatus('listening');
+              isUploadingRef.current = false;
               return;
             }
-
-            // Use explicit codec to match MediaRecorder output and improve compatibility
-            const payload = new Blob(newChunks, {
-              type: 'audio/webm;codecs=opus',
-            });
-
-            // Skip tiny payloads which upstream may reject
+            if (chunk.size < 1000) {
+              processedChunksRef.current++;
+              setProcessedChunks(processedChunksRef.current);
+              setIsLiveTranscribing(false);
+              setLiveStatus('listening');
+              isUploadingRef.current = false;
+              return;
+            }
+            // Subir chunk individual
+            const form = new FormData();
+            form.append('audio', chunk, `chunk_${idx}.webm`);
+            form.append('sessionId', sessionIdRef.current || '');
+            form.append('chunkIndex', String(idx));
+            form.append('final', '0');
+            form.append('language', recorder.language);
+            let ok = false;
+            let text = '';
             try {
-              if (payload.size < 1000) {
-                console.warn('ondataavailable: skipping tiny payload', { size: payload.size });
-                isChunkTranscribingRef.current = false;
-                setIsLiveTranscribing(false);
-                setLiveStatus('listening');
-                return;
+              const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
+              if (resp.ok) {
+                const payload = await resp.json();
+                text = payload.text || '';
+                ok = true;
               }
             } catch {}
-
-            const chunkText = await transcribeAudio(payload, recorder.language, {
-              softFail: true,
-            });
-
-            if (chunkText && chunkText.trim()) {
-              // Append new chunk text to the running transcript.
-              transcriptRef.current = `${transcriptRef.current} ${chunkText.trim()}`.trim();
+            if (ok && text.trim()) {
+              transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
               setTranscript(transcriptRef.current);
-              setLastChunkText(
-                transcriptRef.current.split(/\s+/).slice(-8).join(' ')
-              );
-              // Mark all of the new chunks as processed.
-              processedChunksRef.current = audioChunksRef.current.length;
+              setLastChunkText(transcriptRef.current.split(/\s+/).slice(-8).join(' '));
+              // Liberar memoria del chunk subido
+              audioChunksRef.current[idx] = null as any;
+              processedChunksRef.current++;
               setProcessedChunks(processedChunksRef.current);
               setLiveStatus('updated');
             } else {
-              setLiveStatus('listening');
+              // Reintentos limitados
+              const key = `${sessionIdRef.current}:${idx}`;
+              retryCountsRef.current[key] = (retryCountsRef.current[key] || 0) + 1;
+              if (retryCountsRef.current[key] < 3) {
+                // Reintentar en el siguiente ciclo
+                setTimeout(() => {
+                  isUploadingRef.current = false;
+                  mediaRecorder.ondataavailable!(event);
+                }, 500);
+                return;
+              } else {
+                // Eliminar chunk tras 3 fallos
+                audioChunksRef.current[idx] = null as any;
+                processedChunksRef.current++;
+                setProcessedChunks(processedChunksRef.current);
+                setLiveStatus('listening');
+              }
             }
-          } catch (err) {
-            // Keep this soft to avoid noisy console while recording.
-            console.debug('Real-time transcription skipped:', err);
-            // Continue recording even if chunk transcription fails
-            setLiveStatus('listening');
           } finally {
-            isChunkTranscribingRef.current = false;
             setIsLiveTranscribing(false);
+            isUploadingRef.current = false;
           }
         }
       };
@@ -647,7 +661,7 @@ export function useAudioRecorder() {
         setRecorderError(`Recording error: ${event.error}`);
       };
 
-      mediaRecorder.start(2000); // Capture data every 2 seconds for more stable chunks
+      mediaRecorder.start(800); // Capture data every 0.8 seconds para chunks más pequeños
       setRecording(true);
       transcriptRef.current = ''; // Reset transcript for new recording
 
