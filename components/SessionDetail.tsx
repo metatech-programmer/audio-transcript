@@ -275,15 +275,18 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
                                     // Si el resumen es un objeto grande (Gemini), extraer executiveSummary
                                     let execSummary = '';
                                     if (typeof summaryData === 'object' && summaryData !== null) {
-                                      execSummary = summaryData.executiveSummary || summaryData.resumen || summaryData.summary || '';
+                                      const alt = summaryData as any;
+                                      execSummary = alt.executiveSummary || alt.resumen || alt.summary || '';
                                       // Si accidentalmente viene como objeto anidado, intenta extraerlo
                                       if (typeof execSummary === 'object' && execSummary !== null) {
-                                        execSummary = execSummary.executiveSummary || execSummary.resumen || execSummary.summary || '';
+                                        const inner = execSummary as any;
+                                        execSummary = inner.executiveSummary || inner.resumen || inner.summary || '';
                                       }
                                     }
                                     // Si sigue vacío, intenta extraer del string plano
                                     if (!execSummary) {
-                                      const raw = String(summaryData.executiveSummary || summaryData.resumen || summaryData.summary || '');
+                                      const alt = summaryData as any;
+                                      const raw = String(alt.executiveSummary || alt.resumen || alt.summary || '');
                                       const parsed = parseJsonFromString(raw);
                                       if (parsed && typeof parsed.executiveSummary === 'string') {
                                         execSummary = parsed.executiveSummary;
