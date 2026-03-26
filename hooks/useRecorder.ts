@@ -238,6 +238,11 @@ export function useAudioRecorder() {
       // initialize session ID and rotation pointer
       sessionIdRef.current = generateId();
       lastRotateIndexRef.current = 0;
+      // Propagar sessionId a window.__recorderController para el polling UI
+      if (typeof window !== 'undefined') {
+        if (!(window as any).__recorderController) (window as any).__recorderController = {};
+        (window as any).__recorderController.sessionId = sessionIdRef.current;
+      }
 
       // Define rotation/send function (chunked uploader) and store on ref so stopRecording can call it
       rotateFuncRef.current = async (final: boolean) => {
