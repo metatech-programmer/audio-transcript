@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { transcribeAudio, generateId } from '@/lib/utils';
-import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk, clearFailedChunksBySession } from '@/lib/idb';
+import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk, clearFailedChunksBySession, saveTranscriptChunk, getTranscriptChunksBySession, clearTranscriptChunksBySession } from '@/lib/idb';
 
 // Transcode helpers: convert an AudioBuffer to WAV ArrayBuffer
 function audioBufferToWav(buffer: AudioBuffer) {
@@ -115,21 +115,19 @@ export function useAudioRecorder() {
   const { setRecording, setDuration, setRecorderError, setTranscript, recorder } =
     useAppStore();
 
-  // Helper: read persisted per-chunk transcripts from localStorage and join them in order
-  const readPersistedTranscript = (sessionId: string | null) => {
+  // Helper: read persisted per-chunk transcripts from IndexedDB and join them in order
+  const readPersistedTranscript = async (sessionId: string | null) => {
     try {
       if (!sessionId) return '';
-      const key = `session:${sessionId}`;
-      const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
-      if (!raw) return '';
-      const parsed = JSON.parse(raw as string);
-      const arr = parsed?.transcripts;
+      const arr = await getTranscriptChunksBySession(sessionId);
       if (!Array.isArray(arr)) return '';
+      // Evitar duplicados: solo tomar el primer fragmento por índice
+      const seen = new Set<number>();
       const byIndex: Record<number, string> = {};
       for (const it of arr) {
-        const idx = Number(it?.index ?? NaN);
-        if (Number.isNaN(idx)) continue;
-        // keep latest for index if duplicates exist
+        const idx = Number(it?.chunkIndex ?? NaN);
+        if (Number.isNaN(idx) || seen.has(idx)) continue;
+        seen.add(idx);
         byIndex[idx] = String(it.text || '').trim();
       }
       const keys = Object.keys(byIndex).map((k) => Number(k)).sort((a, b) => a - b);
@@ -144,20 +142,16 @@ export function useAudioRecorder() {
     }
   };
 
-  // Helper: read persisted transcripts and return details (text, count, lastSavedAt)
-  const readPersistedTranscriptDetails = (sessionId: string | null) => {
+  // Helper: read persisted transcripts and return details (text, count, lastSavedAt) from IndexedDB
+  const readPersistedTranscriptDetails = async (sessionId: string | null) => {
     try {
       if (!sessionId) return { text: '', count: 0, lastSavedAt: null as string | null };
-      const key = `session:${sessionId}`;
-      const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
-      if (!raw) return { text: '', count: 0, lastSavedAt: null };
-      const parsed = JSON.parse(raw as string);
-      const arr = parsed?.transcripts;
+      const arr = await getTranscriptChunksBySession(sessionId);
       if (!Array.isArray(arr) || arr.length === 0) return { text: '', count: 0, lastSavedAt: null };
       const byIndex: Record<number, { text: string; createdAt?: string }> = {};
       let lastSaved: string | null = null;
       for (const it of arr) {
-        const idx = Number(it?.index ?? NaN);
+        const idx = Number(it?.chunkIndex ?? NaN);
         if (Number.isNaN(idx)) continue;
         const text = String(it.text || '').trim();
         byIndex[idx] = { text, createdAt: it?.createdAt || null };
@@ -255,15 +249,18 @@ export function useAudioRecorder() {
           // Maximum batch size: 3 MB to avoid serverless payload limits
           const MAX_BYTES = 3 * 1024 * 1024;
 
-          // Helper to persist transcript piece to localStorage (same shape as before)
-          const persistTranscript = (idx: number, text: string, status = 'done') => {
+          // Persist transcript piece to IndexedDB
+          const persistTranscript = async (idx: number, text: string, status = 'done') => {
             try {
-              const key = `session:${sessionIdRef.current}`;
-              const raw = localStorage.getItem(key);
-              const parsed = raw ? JSON.parse(raw) : { sessionId: sessionIdRef.current, transcripts: [] };
-              parsed.transcripts = parsed.transcripts || [];
-              parsed.transcripts.push({ index: idx, text, createdAt: new Date().toISOString(), status });
-              localStorage.setItem(key, JSON.stringify(parsed));
+              if (!sessionIdRef.current) return;
+              await saveTranscriptChunk({
+                id: `${sessionIdRef.current}:${idx}`,
+                sessionId: sessionIdRef.current,
+                chunkIndex: idx,
+                text,
+                status,
+                createdAt: new Date().toISOString(),
+              });
             } catch {}
           };
 
@@ -298,7 +295,7 @@ export function useAudioRecorder() {
                 const all = await getAllFailedChunks();
                 setQueuedCount(all.length || 0);
               } catch {
-                persistTranscript(batchStart, '', 'failed-empty');
+                await persistTranscript(batchStart, '', 'failed-empty');
               }
               return false;
             }
@@ -326,7 +323,7 @@ export function useAudioRecorder() {
               if (resp.ok) {
                 const payload = await resp.json();
                 const text = payload.text || '';
-                persistTranscript(batchStart, text, 'done');
+                await persistTranscript(batchStart, text, 'done');
                 if (text && text.trim()) {
                   transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
                   setTranscript(transcriptRef.current);
@@ -354,7 +351,7 @@ export function useAudioRecorder() {
                   if (retryResp.ok) {
                     const payload = await retryResp.json();
                     const text = payload.text || '';
-                    persistTranscript(batchStart, text, 'done');
+                    await persistTranscript(batchStart, text, 'done');
                     if (text && text.trim()) {
                       transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
                       setTranscript(transcriptRef.current);
@@ -382,7 +379,7 @@ export function useAudioRecorder() {
                 const all = await getAllFailedChunks();
                 setQueuedCount(all.length || 0);
               } catch (e) {
-                persistTranscript(batchStart, '', 'failed');
+                await persistTranscript(batchStart, '', 'failed');
               }
               console.warn('Chunk upload failed:', resp.status, errText);
               return false;
@@ -400,7 +397,7 @@ export function useAudioRecorder() {
                 const all = await getAllFailedChunks();
                 setQueuedCount(all.length || 0);
               } catch {
-                persistTranscript(batchStart, '', 'failed');
+                await persistTranscript(batchStart, '', 'failed');
               }
               console.debug('Chunk upload exception', e);
               return false;
@@ -689,7 +686,7 @@ export function useAudioRecorder() {
         // transcripts (they are saved as chunks complete), fall back to finalText
         // if no persisted content exists, otherwise merge if finalText is longer.
         try {
-          const persisted = readPersistedTranscript(sessionIdRef.current);
+          const persisted = await readPersistedTranscript(sessionIdRef.current);
           const cleanedFinal = finalText ? String(finalText).trim() : '';
           let chosen = '';
           if (persisted && persisted.length > 0) {

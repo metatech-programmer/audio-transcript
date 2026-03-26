@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mic, Globe, FileText } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAudioRecorder } from '@/hooks/useRecorder';
@@ -10,8 +11,21 @@ import TestPhase from './TestPhase';
 import SoundWaves from './SoundWaves';
 import SubjectSelector from './SubjectSelector';
 import type { Session, Summary } from '@/lib/types';
-import { useEffect } from 'react';
 import { getAllFailedChunks } from '@/lib/idb';
+
+// Helper para estimar el uso de localStorage
+function getLocalStorageUsage() {
+  if (typeof window === 'undefined' || !window.localStorage) return { used: 0, max: 5 * 1024 * 1024 };
+  let total = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k) continue;
+    const v = localStorage.getItem(k);
+    if (v) total += k.length + v.length;
+  }
+  // Máximo típico: 5MB
+  return { used: total, max: 5 * 1024 * 1024 };
+}
 
 interface RecorderComponentProps {
   onCreateSession?: (sessionData: Partial<Session>) => Promise<Session>;
@@ -22,6 +36,8 @@ export default function RecorderComponent({
   onCreateSession,
   onSessionSaved,
 }: RecorderComponentProps) {
+  // Estado para advertencia de localStorage casi lleno
+  const [lsWarning, setLsWarning] = useState(false);
   const [showTestPhase, setShowTestPhase] = useState(false);
   const [testPassed, setTestPassed] = useState(false);
   // Nueva opción: fuente de audio
@@ -48,6 +64,7 @@ export default function RecorderComponent({
   const [persistedInfo, setPersistedInfo] = useState<{ text: string; count: number; lastSavedAt: string | null }>({ text: '', count: 0, lastSavedAt: null });
 
   // Poll persisted transcript details while recording (shows incremental save progress)
+  const recIsRecording = typeof isRecording === 'boolean' ? isRecording : false;
   useEffect(() => {
     let id: number | null = null;
     const poll = async () => {
@@ -63,7 +80,7 @@ export default function RecorderComponent({
       }
     };
 
-    if (isRecording) {
+    if (recIsRecording) {
       // initial poll
       void poll();
       id = window.setInterval(() => void poll(), 2000);
@@ -73,7 +90,7 @@ export default function RecorderComponent({
     }
 
     return () => { if (id) window.clearInterval(id); };
-  }, [isRecording, reconstructPersistedTranscriptDetails, persistedInfo.count, persistedInfo.lastSavedAt]);
+  }, [recIsRecording, reconstructPersistedTranscriptDetails, persistedInfo.count, persistedInfo.lastSavedAt]);
 
   // Stop any existing persistent recorder when switching to tab/system capture
   const handleAudioSourceChange = async (value: 'mic' | 'tab' | 'system') => {
@@ -289,22 +306,21 @@ export default function RecorderComponent({
         transcriptText = await transcribeAudio(audioBlob, recorder.language);
       }
 
-      // Prefer the persisted per-chunk transcript when available (more resilient
-      // for long recordings). Reconstruct and choose the most complete result.
-      const persisted = typeof reconstructPersistedTranscript === 'function' ? reconstructPersistedTranscript() : '';
-      const candidate = (transcriptText || '').trim();
-      let finalTranscript = '';
-      if (persisted && persisted.length > (candidate.length || 0)) {
-        finalTranscript = persisted;
-      } else if (candidate && candidate.length > 0) {
-        finalTranscript = candidate;
-      } else if (persisted && persisted.length > 0) {
-        finalTranscript = persisted;
+      // Siempre usar la reconstrucción incremental para guardar y resumir
+      let persisted = '';
+      if (typeof reconstructPersistedTranscript === 'function') {
+        persisted = await reconstructPersistedTranscript();
       }
+      let finalTranscript = (persisted && persisted.length > 0) ? persisted : (transcriptText || '').trim();
 
       if (!finalTranscript || !finalTranscript.trim()) {
         addToast('info', 'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.');
         return;
+      }
+
+      // Log/alert si la transcripción es sospechosamente corta
+      if (finalTranscript.split(/\s+/).length < 20) {
+        try { addToast('warning', '¡Advertencia! La transcripción reconstruida es muy corta. Puede que haya un problema con el guardado incremental.'); } catch {}
       }
 
       setTranscript(finalTranscript.trim());
@@ -480,6 +496,13 @@ export default function RecorderComponent({
 
   return (
     <div className="flex-1 overflow-y-auto bg-transparent">
+      {/* Advertencia si localStorage está casi lleno */}
+      {lsWarning && (
+        <div className="mb-4 p-3 rounded bg-yellow-100 text-yellow-800 border border-yellow-300 text-sm">
+          <b>Advertencia:</b> El almacenamiento local del navegador está casi lleno. Si la grabación es muy larga, podrías perder fragmentos. Considera guardar el respaldo o finalizar pronto.
+        </div>
+      )}
+
       {showAudioHelpModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-2xl bg-white rounded-lg p-6 shadow-lg">
