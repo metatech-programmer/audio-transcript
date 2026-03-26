@@ -272,21 +272,31 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
 
                                 <div className="prose max-w-none text-slate-800">
                                   {(() => {
-                                    const raw = String(summaryData.executiveSummary || '');
-                                    const parsed = parseJsonFromString(raw);
-                                    if (parsed) {
-                                      // If parsed contains a human-friendly executiveSummary field, show it.
-                                      if (parsed.executiveSummary && typeof parsed.executiveSummary === 'string') {
-                                        return sanitizeSummaryText(parsed.executiveSummary).split(/\n\n+/).filter(Boolean).map((p: string, idx: number) => (
-                                          <p key={idx} className={idx === 0 ? 'text-lg font-medium' : ''}>{p}</p>
-                                        ));
+                                    // Si el resumen es un objeto grande (Gemini), extraer executiveSummary
+                                    let execSummary = '';
+                                    if (typeof summaryData === 'object' && summaryData !== null) {
+                                      execSummary = summaryData.executiveSummary || summaryData.resumen || summaryData.summary || '';
+                                      // Si accidentalmente viene como objeto anidado, intenta extraerlo
+                                      if (typeof execSummary === 'object' && execSummary !== null) {
+                                        execSummary = execSummary.executiveSummary || execSummary.resumen || execSummary.summary || '';
                                       }
-                                      // Otherwise show prettified JSON for inspection
-                                      return <pre className="bg-slate-50 p-3 rounded mt-2 text-xs whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>;
                                     }
-
-                                    // Fallback to plain text paragraphs
-                                    return sanitizeSummaryText(raw).split(/\n\n+/).filter(Boolean).map((p: string, idx: number) => (
+                                    // Si sigue vacío, intenta extraer del string plano
+                                    if (!execSummary) {
+                                      const raw = String(summaryData.executiveSummary || summaryData.resumen || summaryData.summary || '');
+                                      const parsed = parseJsonFromString(raw);
+                                      if (parsed && typeof parsed.executiveSummary === 'string') {
+                                        execSummary = parsed.executiveSummary;
+                                      } else if (parsed && typeof parsed.summary === 'string') {
+                                        execSummary = parsed.summary;
+                                      } else if (parsed && typeof parsed === 'string') {
+                                        execSummary = parsed;
+                                      } else {
+                                        execSummary = raw;
+                                      }
+                                    }
+                                    // Renderizar como párrafos limpios
+                                    return sanitizeSummaryText(execSummary).split(/\n\n+/).filter(Boolean).map((p: string, idx: number) => (
                                       <p key={idx} className={idx === 0 ? 'text-lg font-medium' : ''}>{p}</p>
                                     ));
                                   })()}
