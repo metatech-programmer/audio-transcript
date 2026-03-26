@@ -71,6 +71,12 @@ export default function RecorderComponent({
       try {
         if (typeof reconstructPersistedTranscriptDetails === 'function') {
           const d = await reconstructPersistedTranscriptDetails();
+          // Depuración: mostrar sessionId y cantidad de fragmentos detectados
+          if (window && typeof window !== 'undefined') {
+            const sessionId = (window as any).__recorderController?.sessionId || 'N/A';
+            // eslint-disable-next-line no-console
+            console.log('[Recorder][poll] sessionId:', sessionId, 'persistedInfo.count:', persistedInfo.count, 'detected count:', d?.count, 'lastSavedAt:', d?.lastSavedAt);
+          }
           if (d && (d.count !== persistedInfo.count || d.lastSavedAt !== persistedInfo.lastSavedAt)) {
             setPersistedInfo({ text: d.text || '', count: d.count || 0, lastSavedAt: d.lastSavedAt || null });
           }

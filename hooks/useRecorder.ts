@@ -277,17 +277,17 @@ export function useAudioRecorder() {
 
           const flushBatch = async (batchChunks: Blob[], batchStart: number, batchEnd: number, isFinal: boolean) => {
             if (!batchChunks || batchChunks.length === 0) return true;
-            // Include codec in MIME to help upstream transcribers detect format
-            const blob = new Blob(batchChunks, { type: 'audio/webm;codecs=opus' });
+            // Enviar SIEMPRE el audio acumulado hasta el momento (todos los blobs grabados)
+            const fullBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
 
-            if (!blob || blob.size === 0) {
+            if (!fullBlob || fullBlob.size === 0) {
               // save empty marker
               try {
                 await saveFailedChunk({
                   id: `${sessionIdRef.current}:${batchStart}:${Date.now()}:empty`,
                   sessionId: sessionIdRef.current || '',
                   chunkIndex: batchStart,
-                  blob,
+                  blob: fullBlob,
                   final: isFinal,
                   language: recorder.language,
                   createdAt: new Date().toISOString(),
@@ -300,19 +300,19 @@ export function useAudioRecorder() {
               return false;
             }
 
-            // Log and guard tiny blobs that many transcription services reject
+            // Log y validación de tamaño
             try {
-              console.debug('flushBatch: blob', { size: blob.size, type: blob.type, batchStart, batchEnd, isFinal });
+              console.debug('flushBatch: fullBlob', { size: fullBlob.size, type: fullBlob.type, batchStart, batchEnd, isFinal });
             } catch {}
 
             const MIN_BYTES = 1000;
-            if (blob.size < MIN_BYTES) {
-              console.warn('flushBatch: skipping tiny blob', { size: blob.size, MIN_BYTES });
+            if (fullBlob.size < MIN_BYTES) {
+              console.warn('flushBatch: skipping tiny fullBlob', { size: fullBlob.size, MIN_BYTES });
               return true;
             }
 
             const form = new FormData();
-            form.append('audio', blob, `chunk_${batchStart}_${batchEnd}.webm`);
+            form.append('audio', fullBlob, `chunk_${batchStart}_${batchEnd}.webm`);
             form.append('sessionId', sessionIdRef.current || '');
             form.append('chunkIndex', String(batchStart));
             form.append('final', isFinal ? '1' : '0');
@@ -339,7 +339,7 @@ export function useAudioRecorder() {
               // If provider reports invalid media, try re-encoding to WAV and retry once
               if (resp.status === 400 && /could not process file|invalid_request_error/i.test(errText)) {
                 try {
-                  const wavBlob = await transcodeBlobToWav(blob);
+                  const wavBlob = await transcodeBlobToWav(fullBlob);
                   const retryForm = new FormData();
                   retryForm.append('audio', wavBlob, `chunk_${batchStart}_${batchEnd}.wav`);
                   retryForm.append('sessionId', sessionIdRef.current || '');
@@ -372,7 +372,7 @@ export function useAudioRecorder() {
                   id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
                   sessionId: sessionIdRef.current || '',
                   chunkIndex: batchStart,
-                  blob,
+                  blob: fullBlob,
                   final: isFinal,
                   language: recorder.language,
                 } as any);
@@ -390,7 +390,7 @@ export function useAudioRecorder() {
                   id: `${sessionIdRef.current}:${batchStart}:${Date.now()}`,
                   sessionId: sessionIdRef.current || '',
                   chunkIndex: batchStart,
-                  blob,
+                  blob: fullBlob,
                   final: isFinal,
                   language: recorder.language,
                 } as any);
