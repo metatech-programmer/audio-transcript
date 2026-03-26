@@ -364,7 +364,40 @@ export default function SessionDetail({ session, onUpdate, onBack }: SessionDeta
                 <h2 className="text-lg font-bold flex items-center gap-2"><FileText size={18} /> Transcripción Completa</h2>
                 <ChevronDown size={18} />
               </div>
-              {expandedSections.transcript && <div className="mt-4 p-4 bg-slate-50 rounded-md"><pre className="whitespace-pre-wrap text-sm font-mono">{session.transcript}</pre></div>}
+              {expandedSections.transcript && (
+                <>
+                  <div className="mt-4 p-4 bg-slate-50 rounded-md">
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{session.transcript}</pre>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!session.transcript || !session.transcript.trim()) {
+                          addToast('error', 'No hay transcripción para resumir.');
+                          return;
+                        }
+                        try {
+                          setIsGeneratingSummary(true);
+                          const summary = await summarize(session.transcript, session.language);
+                          const updated = { ...session, summary } as Session;
+                          await onUpdate(updated);
+                          addToast('success', 'Resumen regenerado y guardado.');
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : 'Error al generar resumen';
+                          addToast('error', `No se pudo generar el resumen: ${msg}`);
+                        } finally {
+                          setIsGeneratingSummary(false);
+                        }
+                      }}
+                      disabled={isGeneratingSummary || summarizing}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-md ml-2 disabled:opacity-50"
+                    >
+                      {isGeneratingSummary || summarizing ? 'Generando resumen...' : 'Volver a generar resumen'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
