@@ -3,10 +3,10 @@
  * Falls back to in-memory map when Supabase not configured.
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.SUPABASE_KEY || "";
 const USE_SUPABASE = !!(SUPABASE_URL && SUPABASE_KEY);
 
 const memorySessions = new Map<string, DBSession>();
@@ -23,7 +23,7 @@ export interface DBSession {
   title: string;
   date: string;
   duration: number;
-  language: 'en' | 'es';
+  language: "en" | "es";
   // Optional subject/classification for grouping
   subject?: string;
   transcript: string;
@@ -43,9 +43,14 @@ export async function dbSaveSession(session: DBSession): Promise<DBSession> {
 
   if (USE_SUPABASE && supabase) {
     try {
-      await supabase.from('sessions').upsert({ id: session.id, data: session, created_at: session.createdAt, updated_at: session.updatedAt });
+      await supabase.from("sessions").upsert({
+        id: session.id,
+        data: session,
+        created_at: session.createdAt,
+        updated_at: session.updatedAt,
+      });
     } catch (error) {
-      console.error('Supabase save error, falling back to memory:', error);
+      console.error("Supabase save error, falling back to memory:", error);
     }
   }
 
@@ -64,16 +69,21 @@ export async function dbGetSessions(): Promise<DBSession[]> {
   }
 
   try {
-    const { data, error } = await supabase.from('sessions').select('id, data').order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("id, data")
+      .order("created_at", { ascending: false });
     if (error) {
-      console.error('Supabase query error:', error);
+      console.error("Supabase query error:", error);
       return [];
     }
 
     const sessions: DBSession[] = (data || []).map((row: any) => row.data as DBSession);
-    return sessions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return sessions.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   } catch (error) {
-    console.error('DB error:', error);
+    console.error("DB error:", error);
     return [];
   }
 }
@@ -85,15 +95,15 @@ export async function dbGetSession(id: string): Promise<DBSession | null> {
   if (!USE_SUPABASE || !supabase) return memorySessions.get(id) || null;
 
   try {
-    const { data, error } = await supabase.from('sessions').select('data').eq('id', id).single();
+    const { data, error } = await supabase.from("sessions").select("data").eq("id", id).single();
     if (error) {
-      console.error('Supabase get error:', error);
+      console.error("Supabase get error:", error);
       return null;
     }
 
     return data ? (data.data as DBSession) : null;
   } catch (error) {
-    console.error('DB error:', error);
+    console.error("DB error:", error);
     return null;
   }
 }
@@ -106,9 +116,11 @@ export async function dbUpdateSession(session: DBSession): Promise<DBSession> {
 
   if (USE_SUPABASE && supabase) {
     try {
-      await supabase.from('sessions').upsert({ id: session.id, data: session, updated_at: session.updatedAt });
+      await supabase
+        .from("sessions")
+        .upsert({ id: session.id, data: session, updated_at: session.updatedAt });
     } catch (error) {
-      console.error('Supabase update error, falling back to memory:', error);
+      console.error("Supabase update error, falling back to memory:", error);
     }
   }
 
@@ -122,9 +134,9 @@ export async function dbUpdateSession(session: DBSession): Promise<DBSession> {
 export async function dbDeleteSession(id: string): Promise<void> {
   if (USE_SUPABASE && supabase) {
     try {
-      await supabase.from('sessions').delete().eq('id', id);
+      await supabase.from("sessions").delete().eq("id", id);
     } catch (error) {
-      console.error('Supabase delete error:', error);
+      console.error("Supabase delete error:", error);
     }
   }
 
@@ -147,6 +159,7 @@ export async function dbSearchSessions(query: string): Promise<DBSession[]> {
   const lowerQuery = query.toLowerCase();
 
   return sessions.filter(
-    (s) => s.title.toLowerCase().includes(lowerQuery) || s.transcript.toLowerCase().includes(lowerQuery)
+    (s) =>
+      s.title.toLowerCase().includes(lowerQuery) || s.transcript.toLowerCase().includes(lowerQuery)
   );
 }
