@@ -1,6 +1,6 @@
 // Minimal IndexedDB helper for queued failed chunks
-const DB_NAME = 'audio-transcribe-db';
-const STORE_NAME = 'failedChunks';
+const DB_NAME = "audio-transcribe-db";
+const STORE_NAME = "failedChunks";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -8,7 +8,7 @@ function openDB(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -16,10 +16,18 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveFailedChunk(entry: { id: string; sessionId: string; chunkIndex: number; blob: Blob; final?: boolean; language?: string; createdAt?: string }) {
+export async function saveFailedChunk(entry: {
+  id: string;
+  sessionId: string;
+  chunkIndex: number;
+  blob: Blob;
+  final?: boolean;
+  language?: string;
+  createdAt?: string;
+}) {
   const db = await openDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     store.put({ ...entry, createdAt: entry.createdAt || new Date().toISOString() });
     tx.oncomplete = () => resolve();
@@ -30,7 +38,7 @@ export async function saveFailedChunk(entry: { id: string; sessionId: string; ch
 export async function getAllFailedChunks() {
   const db = await openDB();
   return new Promise<any[]>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
+    const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.getAll();
     req.onsuccess = () => resolve(req.result || []);
@@ -41,7 +49,7 @@ export async function getAllFailedChunks() {
 export async function deleteFailedChunk(id: string) {
   const db = await openDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     store.delete(id);
     tx.oncomplete = () => resolve();
@@ -52,7 +60,7 @@ export async function deleteFailedChunk(id: string) {
 export async function clearFailedChunksBySession(sessionId?: string) {
   const db = await openDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const req = store.getAll();
     req.onsuccess = async () => {
@@ -73,7 +81,7 @@ export async function clearFailedChunksBySession(sessionId?: string) {
 }
 
 // --- Transcript Chunks Store ---
-const TRANSCRIPT_STORE = 'transcriptChunks';
+const TRANSCRIPT_STORE = "transcriptChunks";
 
 function openTranscriptDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -81,11 +89,11 @@ function openTranscriptDB(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(TRANSCRIPT_STORE)) {
-        db.createObjectStore(TRANSCRIPT_STORE, { keyPath: 'id' });
+        db.createObjectStore(TRANSCRIPT_STORE, { keyPath: "id" });
       }
       // Keep failedChunks for backward compatibility
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -93,10 +101,17 @@ function openTranscriptDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveTranscriptChunk(entry: { id: string; sessionId: string; chunkIndex: number; text: string; createdAt?: string; status?: string }) {
+export async function saveTranscriptChunk(entry: {
+  id: string;
+  sessionId: string;
+  chunkIndex: number;
+  text: string;
+  createdAt?: string;
+  status?: string;
+}) {
   const db = await openTranscriptDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(TRANSCRIPT_STORE, 'readwrite');
+    const tx = db.transaction(TRANSCRIPT_STORE, "readwrite");
     const store = tx.objectStore(TRANSCRIPT_STORE);
     store.put({ ...entry, createdAt: entry.createdAt || new Date().toISOString() });
     tx.oncomplete = () => resolve();
@@ -107,7 +122,7 @@ export async function saveTranscriptChunk(entry: { id: string; sessionId: string
 export async function getTranscriptChunksBySession(sessionId: string) {
   const db = await openTranscriptDB();
   return new Promise<any[]>((resolve, reject) => {
-    const tx = db.transaction(TRANSCRIPT_STORE, 'readonly');
+    const tx = db.transaction(TRANSCRIPT_STORE, "readonly");
     const store = tx.objectStore(TRANSCRIPT_STORE);
     const req = store.getAll();
     req.onsuccess = () => {
@@ -121,7 +136,7 @@ export async function getTranscriptChunksBySession(sessionId: string) {
 export async function clearTranscriptChunksBySession(sessionId: string) {
   const db = await openTranscriptDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(TRANSCRIPT_STORE, 'readwrite');
+    const tx = db.transaction(TRANSCRIPT_STORE, "readwrite");
     const store = tx.objectStore(TRANSCRIPT_STORE);
     const req = store.getAll();
     req.onsuccess = async () => {

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * POST /api/summarize
@@ -7,26 +7,18 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, language = 'en' } = await request.json();
+    const { transcript, language = "en" } = await request.json();
 
-    if (!transcript || typeof transcript !== 'string') {
-      return NextResponse.json(
-        { error: 'Invalid transcript' },
-        { status: 400 }
-      );
+    if (!transcript || typeof transcript !== "string") {
+      return NextResponse.json({ error: "Invalid transcript" }, { status: 400 });
     }
 
     // Use Groq for fast LLM inference (free tier available)
     const groqApiKey =
-      process.env.GROQ_LLM_API_KEY ||
-      process.env.LLM_API_KEY ||
-      process.env.GROQ_API_KEY;
+      process.env.GROQ_LLM_API_KEY || process.env.LLM_API_KEY || process.env.GROQ_API_KEY;
 
     if (!groqApiKey) {
-      return NextResponse.json(
-        { error: 'LLM API key not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "LLM API key not configured" }, { status: 500 });
     }
 
     // Chunk transcript if too long (prevent token limits)
@@ -36,15 +28,15 @@ export async function POST(request: NextRequest) {
     const chunkSummaries: string[] = [];
     for (const chunk of chunks) {
       const chunkPrompt = getChunkPrompt(chunk, language);
-      const chunkResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
+      const chunkResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: chunkPrompt }],
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: chunkPrompt }],
           temperature: 0.2,
           max_tokens: 800,
         }),
@@ -52,37 +44,36 @@ export async function POST(request: NextRequest) {
 
       if (!chunkResponse.ok) {
         const error = await chunkResponse.text();
-        console.error('Groq chunk summarize error:', error);
+        console.error("Groq chunk summarize error:", error);
         continue;
       }
 
       const chunkResult = await chunkResponse.json();
-      const chunkContent = chunkResult.choices[0]?.message?.content || '';
+      const chunkContent = chunkResult.choices[0]?.message?.content || "";
       if (chunkContent) {
         chunkSummaries.push(chunkContent);
       }
     }
 
-    const consolidatedInput =
-      chunkSummaries.length > 0 ? chunkSummaries.join('\n\n') : transcript;
+    const consolidatedInput = chunkSummaries.length > 0 ? chunkSummaries.join("\n\n") : transcript;
 
     const prompt = getFinalPrompt(consolidatedInput, language);
 
-    let content = '';
+    let content = "";
     let summary;
     let groqFailed = false;
     // --- PRIMER INTENTO: GROQ ---
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: "llama-3.3-70b-versatile",
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
@@ -93,14 +84,14 @@ export async function POST(request: NextRequest) {
 
     if (response.ok) {
       const result = await response.json();
-      content = result.choices[0]?.message?.content || '';
+      content = result.choices[0]?.message?.content || "";
       try {
         summary = normalizeSummary(JSON.parse(content));
       } catch {
         summary = normalizeSummary({
           executiveSummary: content,
           keyPoints: [],
-          lectureNotes: '',
+          lectureNotes: "",
           actionableInsights: [],
         });
       }
@@ -114,31 +105,35 @@ export async function POST(request: NextRequest) {
     if (!geminiApiKey) {
       const error = await response.text();
       return NextResponse.json(
-        { error: 'Summarization failed (Groq and Gemini not available)', details: error },
+        { error: "Summarization failed (Groq and Gemini not available)", details: error },
         { status: 500 }
       );
     }
     // Gemini API expects a different payload
-    const geminiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + geminiApiKey, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 2500 }
-      })
-    });
+    const geminiRes = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
+        geminiApiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4, maxOutputTokens: 2500 },
+        }),
+      }
+    );
     if (!geminiRes.ok) {
       const error = await geminiRes.text();
       return NextResponse.json(
-        { error: 'Summarization failed (Groq and Gemini)', details: error },
+        { error: "Summarization failed (Groq and Gemini)", details: error },
         { status: geminiRes.status }
       );
     }
     const geminiData = await geminiRes.json();
     // Gemini response parsing
-    let geminiText = '';
+    let geminiText = "";
     try {
-      geminiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      geminiText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } catch {}
     if (!geminiText) {
       geminiText = JSON.stringify(geminiData);
@@ -149,28 +144,27 @@ export async function POST(request: NextRequest) {
       summary = normalizeSummary({
         executiveSummary: geminiText,
         keyPoints: [],
-        lectureNotes: '',
+        lectureNotes: "",
         actionableInsights: [],
       });
     }
     return NextResponse.json({ summary });
   } catch (error) {
-    console.error('Summarization error:', error);
-    const message =
-      error instanceof Error ? error.message : 'Summarization failed';
+    console.error("Summarization error:", error);
+    const message = error instanceof Error ? error.message : "Summarization failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 function getChunkPrompt(chunk: string, language: string): string {
-  if (language === 'es') {
+  if (language === "es") {
     return `Eres un experto en tomar notas universitarias. Analiza este fragmento de clase y extrae:\n- Conceptos clave\n- Definiciones\n- Ejemplos\n- Explicaciones\n- Conexiones entre temas\nResponde solo con puntos clave, sin texto adicional.\n\n${chunk}`;
   }
   return `You are an expert university note-taker. Analyze this lecture fragment and extract:\n- Key concepts\n- Definitions\n- Examples\n- Explanations\n- Connections between topics\nRespond only with key point bullets, no extra text.\n\n${chunk}`;
 }
 
 function getFinalPrompt(consolidatedInput: string, language: string): string {
-  if (language === 'es') {
+  if (language === "es") {
     return `Eres un experto en resumir clases de maestría. Genera un resumen académico de ALTA COMPLEJIDAD y FORMATO ESTRICTO.
 
 Analiza la siguiente transcripción completa (puede durar varias horas) y responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional). Debe respetar exactamente la siguiente estructura de objetos (incluye campos opcionales cuando no haya información explícita):
@@ -290,67 +284,142 @@ ${consolidatedInput}`;
 }
 
 function normalizeSummary(input: unknown) {
-  const data = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+  const data = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
 
   // Backwards-compatible fields
-  const executiveSummary = toText(data.executiveSummary || data.summary || '');
-  const lectureNotes = toText(data.lectureNotes || data.notas || '');
+  const executiveSummary = toText(data.executiveSummary || data.summary || "");
+  const lectureNotes = toText(data.lectureNotes || data.notas || "");
   const keyPoints = toStringList(data.keyPoints || data.puntosClave || []);
   const actionableInsights = toStringList(data.actionableInsights || data.insights || []);
 
   // High-complexity structured fields
-  const metadata = (data.metadata && typeof data.metadata === 'object') ? data.metadata as Record<string, unknown> : {
-    subject: toText((data as any).subject || ''),
-    unit: toText((data as any).unit || ''),
-    sessionNumber: toText((data as any).sessionNumber || ''),
-    thematicAxis: toText((data as any).thematicAxis || (data as any).ejeTematico || ''),
-    keywords: toStringList((data as any).keywords || (data as any).palabrasClave || []),
-  };
+  const metadata =
+    data.metadata && typeof data.metadata === "object"
+      ? (data.metadata as Record<string, unknown>)
+      : {
+          subject: toText((data as any).subject || ""),
+          unit: toText((data as any).unit || ""),
+          sessionNumber: toText((data as any).sessionNumber || ""),
+          thematicAxis: toText((data as any).thematicAxis || (data as any).ejeTematico || ""),
+          keywords: toStringList((data as any).keywords || (data as any).palabrasClave || []),
+        };
 
   const learningOutcomes = {
-    competencies: toStringList((data.learningOutcomes && (data.learningOutcomes as any).competencies) || (data as any).competencies || []),
-    mainProblem: toText((data.learningOutcomes && (data.learningOutcomes as any).mainProblem) || (data as any).mainProblem || ''),
+    competencies: toStringList(
+      (data.learningOutcomes && (data.learningOutcomes as any).competencies) ||
+        (data as any).competencies ||
+        []
+    ),
+    mainProblem: toText(
+      (data.learningOutcomes && (data.learningOutcomes as any).mainProblem) ||
+        (data as any).mainProblem ||
+        ""
+    ),
   };
 
   const theoreticalCore = {
-    concepts: toText((data.theoreticalCore && (data.theoreticalCore as any).concepts) || (data as any).concepts || ''),
-    modelsStandards: toText((data.theoreticalCore && (data.theoreticalCore as any).modelsStandards) || (data as any).modelsStandards || ''),
-    referencedAuthors: toStringList((data.theoreticalCore && (data.theoreticalCore as any).referencedAuthors) || (data as any).referencedAuthors || []),
+    concepts: toText(
+      (data.theoreticalCore && (data.theoreticalCore as any).concepts) ||
+        (data as any).concepts ||
+        ""
+    ),
+    modelsStandards: toText(
+      (data.theoreticalCore && (data.theoreticalCore as any).modelsStandards) ||
+        (data as any).modelsStandards ||
+        ""
+    ),
+    referencedAuthors: toStringList(
+      (data.theoreticalCore && (data.theoreticalCore as any).referencedAuthors) ||
+        (data as any).referencedAuthors ||
+        []
+    ),
   };
 
   const comparativeAnalysis = {
-    prosCons: toText((data.comparativeAnalysis && (data.comparativeAnalysis as any).prosCons) || (data as any).prosCons || ''),
-    comparisons: toText((data.comparativeAnalysis && (data.comparativeAnalysis as any).comparisons) || (data as any).comparisons || ''),
-    contextOfUse: toText((data.comparativeAnalysis && (data.comparativeAnalysis as any).contextOfUse) || (data as any).contextOfUse || ''),
+    prosCons: toText(
+      (data.comparativeAnalysis && (data.comparativeAnalysis as any).prosCons) ||
+        (data as any).prosCons ||
+        ""
+    ),
+    comparisons: toText(
+      (data.comparativeAnalysis && (data.comparativeAnalysis as any).comparisons) ||
+        (data as any).comparisons ||
+        ""
+    ),
+    contextOfUse: toText(
+      (data.comparativeAnalysis && (data.comparativeAnalysis as any).contextOfUse) ||
+        (data as any).contextOfUse ||
+        ""
+    ),
   };
 
   const examples = {
-    academicExample: toText((data.examples && (data.examples as any).academicExample) || (data as any).academicExample || ''),
-    caseStudy: toText((data.examples && (data.examples as any).caseStudy) || (data as any).caseStudy || ''),
-    antipatterns: toText((data.examples && (data.examples as any).antipatterns) || (data as any).antipatterns || ''),
+    academicExample: toText(
+      (data.examples && (data.examples as any).academicExample) ||
+        (data as any).academicExample ||
+        ""
+    ),
+    caseStudy: toText(
+      (data.examples && (data.examples as any).caseStudy) || (data as any).caseStudy || ""
+    ),
+    antipatterns: toText(
+      (data.examples && (data.examples as any).antipatterns) || (data as any).antipatterns || ""
+    ),
   };
 
   const technicalComponent = {
-    codeSnippets: toText((data.technicalComponent && (data.technicalComponent as any).codeSnippets) || (data as any).codeSnippets || ''),
-    tools: toStringList((data.technicalComponent && (data.technicalComponent as any).tools) || (data as any).tools || []),
-    diagrams: toText((data.technicalComponent && (data.technicalComponent as any).diagrams) || (data as any).diagrams || ''),
+    codeSnippets: toText(
+      (data.technicalComponent && (data.technicalComponent as any).codeSnippets) ||
+        (data as any).codeSnippets ||
+        ""
+    ),
+    tools: toStringList(
+      (data.technicalComponent && (data.technicalComponent as any).tools) ||
+        (data as any).tools ||
+        []
+    ),
+    diagrams: toText(
+      (data.technicalComponent && (data.technicalComponent as any).diagrams) ||
+        (data as any).diagrams ||
+        ""
+    ),
   };
 
   const debate = {
-    controversies: toText((data.debate && (data.debate as any).controversies) || (data as any).controversies || ''),
-    participantContributions: toText((data.debate && (data.debate as any).participantContributions) || (data as any).participantContributions || ''),
+    controversies: toText(
+      (data.debate && (data.debate as any).controversies) || (data as any).controversies || ""
+    ),
+    participantContributions: toText(
+      (data.debate && (data.debate as any).participantContributions) ||
+        (data as any).participantContributions ||
+        ""
+    ),
   };
 
   const interdisciplinary = {
-    relations: toText((data.interdisciplinary && (data.interdisciplinary as any).relations) || (data as any).relations || ''),
-    workplaceApplications: toText((data.interdisciplinary && (data.interdisciplinary as any).workplaceApplications) || (data as any).workplaceApplications || ''),
+    relations: toText(
+      (data.interdisciplinary && (data.interdisciplinary as any).relations) ||
+        (data as any).relations ||
+        ""
+    ),
+    workplaceApplications: toText(
+      (data.interdisciplinary && (data.interdisciplinary as any).workplaceApplications) ||
+        (data as any).workplaceApplications ||
+        ""
+    ),
   };
 
   const keyTakeaways = toStringList(data.keyTakeaways || (data as any).keyTakeaways || []);
 
   const references = {
-    readings: toStringList((data.references && (data.references as any).readings) || (data as any).readings || []),
-    questionsForStudy: toStringList((data.references && (data.references as any).questionsForStudy) || (data as any).questionsForStudy || []),
+    readings: toStringList(
+      (data.references && (data.references as any).readings) || (data as any).readings || []
+    ),
+    questionsForStudy: toStringList(
+      (data.references && (data.references as any).questionsForStudy) ||
+        (data as any).questionsForStudy ||
+        []
+    ),
   };
 
   return {
@@ -372,34 +441,32 @@ function normalizeSummary(input: unknown) {
 }
 
 function toText(value: unknown): string {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value;
   }
 
   if (Array.isArray(value)) {
     return value
-      .map((item) => (typeof item === 'string' ? item : String(item ?? '')))
+      .map((item) => (typeof item === "string" ? item : String(item ?? "")))
       .filter(Boolean)
-      .join('\n');
+      .join("\n");
   }
 
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
-      .join('\n');
+      .map(([key, val]) => `${key}: ${typeof val === "string" ? val : JSON.stringify(val)}`)
+      .join("\n");
   }
 
-  return value == null ? '' : String(value);
+  return value == null ? "" : String(value);
 }
 
 function toStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value
-      .map((item) => toText(item).trim())
-      .filter(Boolean);
+    return value.map((item) => toText(item).trim()).filter(Boolean);
   }
 
-  if (value && typeof value === 'object') {
+  if (value && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
       .map(([key, val]) => `${key}: ${toText(val)}`.trim())
       .filter(Boolean);
@@ -417,7 +484,7 @@ function chunkTranscript(transcript: string, chunkSize: number): string[] {
 
   for (const word of words) {
     if (currentSize + word.length > chunkSize && currentChunk.length > 0) {
-      chunks.push(currentChunk.join(' '));
+      chunks.push(currentChunk.join(" "));
       currentChunk = [word];
       currentSize = word.length;
     } else {
@@ -427,7 +494,7 @@ function chunkTranscript(transcript: string, chunkSize: number): string[] {
   }
 
   if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join(' '));
+    chunks.push(currentChunk.join(" "));
   }
 
   return chunks.length === 0 ? [transcript] : chunks;

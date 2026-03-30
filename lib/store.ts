@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import type { Session, RecorderState } from './types';
+import { create } from "zustand";
+import type { Session, RecorderState } from "./types";
 
-type ToastType = 'success' | 'error' | 'info' | 'warning';
+type ToastType = "success" | "error" | "info" | "warning";
 
 interface ToastMessage {
   id: string;
@@ -16,7 +16,7 @@ interface AppStore {
   setPaused: (isPaused: boolean) => void;
   setDuration: (duration: number) => void;
   setTranscript: (transcript: string) => void;
-  setLanguage: (language: 'en' | 'es') => void;
+  setLanguage: (language: "en" | "es") => void;
   setSummarizing: (isSummarizing: boolean) => void;
   setRecorderError: (error: string | null) => void;
   resetRecorder: () => void;
@@ -43,8 +43,8 @@ const initialRecorderState: RecorderState = {
   isRecording: false,
   isPaused: false,
   duration: 0,
-  transcript: '',
-  language: 'es',
+  transcript: "",
+  language: "es",
   isSummarizing: false,
   error: null,
 };
@@ -110,7 +110,7 @@ export const useAppStore = create<AppStore>((set) => ({
   // UI
   selectedTags: [],
   setSelectedTags: (selectedTags) => set({ selectedTags }),
-  searchQuery: '',
+  searchQuery: "",
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   toasts: [],
   addToast: (type, text) => {

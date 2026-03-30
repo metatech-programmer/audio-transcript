@@ -1,6 +1,4 @@
-
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 
 interface SoundWavesProps {
   isActive: boolean;
@@ -27,14 +25,12 @@ function generateBezierWavePath({
 }) {
   const midY = height / 2;
   const step = width / (points - 1);
-  let d = '';
+  let d = "";
   let prev = { x: 0, y: midY };
   for (let i = 0; i < points; i++) {
     const x = i * step;
     // Envelope: atenuación tipo Gauss para que los extremos terminen en y=midY
-    const env = envelope
-      ? Math.exp(-0.5 * Math.pow((i - points / 2) / (points / 2.2), 2))
-      : 1;
+    const env = envelope ? Math.exp(-0.5 * Math.pow((i - points / 2) / (points / 2.2), 2)) : 1;
     const y = midY + Math.sin((i / points) * Math.PI * 2 * frequency + phase) * amplitude * env;
     if (i === 0) {
       d = `M ${x.toFixed(2)} ${y.toFixed(2)}`;
@@ -62,45 +58,45 @@ export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
       frequency: 1.0,
       phaseShift: 0,
       strokeWidth: 2.6,
-      dash: '',
+      dash: "",
       opacity: 1,
-      filter: 'url(#glow)',
-      gradient: 'url(#waveGradientMain)',
+      filter: "url(#glow)",
+      gradient: "url(#waveGradientMain)",
     },
     {
       amplitude: 15,
       frequency: 1.12,
       phaseShift: 0.7,
       strokeWidth: 1.7,
-      dash: '7 7',
+      dash: "7 7",
       opacity: 0.55,
-      filter: 'url(#glow)',
-      gradient: 'url(#waveGradientCyan)',
+      filter: "url(#glow)",
+      gradient: "url(#waveGradientCyan)",
     },
     {
       amplitude: 11,
       frequency: 0.92,
       phaseShift: -0.6,
       strokeWidth: 1.2,
-      dash: '3 6',
+      dash: "3 6",
       opacity: 0.32,
-      filter: 'url(#glow)',
-      gradient: 'url(#waveGradientPurple)',
+      filter: "url(#glow)",
+      gradient: "url(#waveGradientPurple)",
     },
     {
       amplitude: 7,
       frequency: 1.25,
       phaseShift: 1.2,
       strokeWidth: 0.9,
-      dash: '2 8',
+      dash: "2 8",
       opacity: 0.18,
-      filter: 'url(#glow)',
-      gradient: 'url(#waveGradientPink)',
+      filter: "url(#glow)",
+      gradient: "url(#waveGradientPink)",
     },
   ];
 
   const [phases, setPhases] = useState(Array(layers.length).fill(0));
-  const [paths, setPaths] = useState<string[]>(Array(layers.length).fill(''));
+  const [paths, setPaths] = useState<string[]>(Array(layers.length).fill(""));
   const audioLevelRef = useRef(audioLevel);
   const rafRef = useRef<number | null>(null);
 
@@ -117,8 +113,8 @@ export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
       const level = Math.max(0.08, Math.min(1.7, 0.08 + audioLevelRef.current / 55));
       const now = performance.now();
       // Fases independientes para cada capa, con más variación y velocidad
-      const newPhases = phases.map((p, i) =>
-        p + 0.028 + i * 0.018 + Math.sin(now / (900 + i * 200)) * (0.012 + i * 0.004)
+      const newPhases = phases.map(
+        (p, i) => p + 0.028 + i * 0.018 + Math.sin(now / (900 + i * 200)) * (0.012 + i * 0.004)
       );
       setPhases(newPhases);
       setPaths(
@@ -149,7 +145,7 @@ export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        style={{ width: '100%', height: `${height}px`, display: 'block' }}
+        style={{ width: "100%", height: `${height}px`, display: "block" }}
         aria-hidden={!isActive}
       >
         <defs>
@@ -186,10 +182,10 @@ export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
             frequency: 1,
             phaseShift: 0,
             strokeWidth: 2,
-            dash: '',
+            dash: "",
             opacity: 1,
             filter: undefined,
-            gradient: 'url(#waveGradientMain)'
+            gradient: "url(#waveGradientMain)",
           };
           return (
             <path
@@ -201,7 +197,7 @@ export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
               strokeDasharray={layer.dash}
               strokeOpacity={layer.opacity}
               filter={layer.filter}
-              style={{ transition: 'stroke-opacity 220ms' }}
+              style={{ transition: "stroke-opacity 220ms" }}
             />
           );
         })}

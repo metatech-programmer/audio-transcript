@@ -22,13 +22,24 @@ interface SubjectGroupProps {
   onDeleteRequest?: (id: string, e: React.MouseEvent) => void;
 }
 
-function SubjectGroup({ subject, items, currentSession, onSelectSession, onDeleteRequest }: SubjectGroupProps) {
+function SubjectGroup({
+  subject,
+  items,
+  currentSession,
+  onSelectSession,
+  onDeleteRequest,
+}: SubjectGroupProps) {
   const [collapsed, setCollapsed] = useState(false);
   return (
     <div className="border rounded-md bg-white">
-      <div className="px-3 py-2 flex items-center justify-between cursor-pointer" onClick={() => setCollapsed((c) => !c)}>
+      <div
+        className="px-3 py-2 flex items-center justify-between cursor-pointer"
+        onClick={() => setCollapsed((c) => !c)}
+      >
         <div className="flex items-center gap-2 min-w-0">
-          <strong className="text-sm truncate-ellipsis max-w-dvw-50 flex-truncate">{subject}</strong>
+          <strong className="text-sm truncate-ellipsis max-w-dvw-50 flex-truncate">
+            {subject}
+          </strong>
           <span className="text-xs text-slate-500">{items.length}</span>
         </div>
         <div className="text-sm text-slate-500">{collapsed ? "Mostrar" : "Ocultar"}</div>
@@ -40,15 +51,22 @@ function SubjectGroup({ subject, items, currentSession, onSelectSession, onDelet
               key={session.id}
               onClick={() => onSelectSession(session)}
               className={`group relative flex flex-col p-3 cursor-pointer transition-colors ${
-                currentSession?.id === session.id ? "bg-white shadow-sm ring-1 ring-[#EAEAEB]" : "border border-transparent hover:bg-[#EAEAEB]/40"
+                currentSession?.id === session.id
+                  ? "bg-white shadow-sm ring-1 ring-[#EAEAEB]"
+                  : "border border-transparent hover:bg-[#EAEAEB]/40"
               }`}
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <div className="font-medium text-slate-800 truncate-ellipsis max-w-dvw-60 flex-truncate">{session.title || 'Grabación'}</div>
+                  <div className="font-medium text-slate-800 truncate-ellipsis max-w-dvw-60 flex-truncate">
+                    {session.title || "Grabación"}
+                  </div>
                   <div className="text-xs text-slate-500">{formatDate(session.createdAt)}</div>
                 </div>
-                <button onClick={(e) => onDeleteRequest?.(session.id, e)} className="p-2 rounded hover:bg-red-50 text-red-600">
+                <button
+                  onClick={(e) => onDeleteRequest?.(session.id, e)}
+                  className="p-2 rounded hover:bg-red-50 text-red-600"
+                >
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -60,7 +78,13 @@ function SubjectGroup({ subject, items, currentSession, onSelectSession, onDelet
   );
 }
 
-export default function SessionHistory({ sessions, currentSession, onSelectSession, onDeleteSession, onCreateNew }: SessionHistoryProps) {
+export default function SessionHistory({
+  sessions,
+  currentSession,
+  onSelectSession,
+  onDeleteSession,
+  onCreateNew,
+}: SessionHistoryProps) {
   const { addToast } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -70,8 +94,11 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
   const allTags = Array.from(new Set(sessions.flatMap((s: Session) => s.tags || []))) as string[];
 
   const filteredSessions: Session[] = sessions.filter((session: Session) => {
-    const matchesSearch = (session.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || (session.transcript || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTags = selectedTags.length === 0 || selectedTags.some((tag) => (session.tags || []).includes(tag));
+    const matchesSearch =
+      (session.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (session.transcript || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesTags =
+      selectedTags.length === 0 || selectedTags.some((tag) => (session.tags || []).includes(tag));
     return matchesSearch && matchesTags;
   });
 
@@ -86,11 +113,11 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
     setIsDeleting(sessionId);
     try {
       await onDeleteSession(sessionId);
-      addToast('success', 'Grabación eliminada correctamente.');
+      addToast("success", "Grabación eliminada correctamente.");
       setPendingDeleteId(null);
     } catch (error) {
-      console.error('Delete session failed:', error);
-      addToast('error', 'No se pudo eliminar la grabación. Intenta de nuevo.');
+      console.error("Delete session failed:", error);
+      addToast("error", "No se pudo eliminar la grabación. Intenta de nuevo.");
     } finally {
       setIsDeleting(null);
     }
@@ -99,7 +126,7 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
   // Group by subject
   const groups: Record<string, Session[]> = {};
   filteredSessions.forEach((s: Session) => {
-    const key = s.subject || 'Sin clasificar';
+    const key = s.subject || "Sin clasificar";
     if (!groups[key]) groups[key] = [];
     groups[key].push(s);
   });
@@ -107,13 +134,22 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
   return (
     <div className="w-full flex-col h-full bg-transparent">
       <div className="px-5 py-4 border-b border-[#EAEAEB] bg-white">
-        <button onClick={onCreateNew} className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 text-[13px] font-medium transition-colors shadow-sm">
+        <button
+          onClick={onCreateNew}
+          className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-md hover:bg-slate-800 text-[13px] font-medium transition-colors shadow-sm"
+        >
           Nueva grabación
         </button>
 
         <div className="relative group">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="text" placeholder="Buscar grabaciones..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-[#F9F9FA] border border-transparent rounded-md text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white" />
+          <input
+            type="text"
+            placeholder="Buscar grabaciones..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-[#F9F9FA] border border-transparent rounded-md text-[13px] text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white"
+          />
         </div>
       </div>
 
@@ -121,7 +157,19 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
         <div className="px-5 py-3 border-b border-[#EAEAEB] bg-[#F9F9FA]/50">
           <div className="flex flex-wrap gap-1.5">
             {allTags.map((tag) => (
-              <button key={tag} onClick={() => setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${selectedTags.includes(tag) ? 'bg-slate-800 text-white border-slate-800 shadow-sm' : 'bg-white text-slate-600 border-[#EAEAEB]'}`}>
+              <button
+                key={tag}
+                onClick={() =>
+                  setSelectedTags((prev) =>
+                    prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+                  )
+                }
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                  selectedTags.includes(tag)
+                    ? "bg-slate-800 text-white border-slate-800 shadow-sm"
+                    : "bg-white text-slate-600 border-[#EAEAEB]"
+                }`}
+              >
                 {tag}
               </button>
             ))}
@@ -132,11 +180,20 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
       <div className="flex-1 overflow-y-auto pb-6 px-2 py-2 space-y-3">
         {filteredSessions.length === 0 ? (
           <div className="px-5 py-8 text-center text-slate-500">
-            <p className="text-[13px]">{sessions.length === 0 ? 'No hay grabaciones todavía' : 'No hay coincidencias'}</p>
+            <p className="text-[13px]">
+              {sessions.length === 0 ? "No hay grabaciones todavía" : "No hay coincidencias"}
+            </p>
           </div>
         ) : (
           Object.entries(groups).map(([subject, items]) => (
-            <SubjectGroup key={subject} subject={subject} items={items} currentSession={currentSession} onSelectSession={onSelectSession} onDeleteRequest={handleDeleteRequest} />
+            <SubjectGroup
+              key={subject}
+              subject={subject}
+              items={items}
+              currentSession={currentSession}
+              onSelectSession={onSelectSession}
+              onDeleteRequest={handleDeleteRequest}
+            />
           ))
         )}
       </div>
@@ -147,8 +204,21 @@ export default function SessionHistory({ sessions, currentSession, onSelectSessi
             <h3 className="mb-2 text-base font-semibold text-slate-900">¿Eliminar grabación?</h3>
             <p className="mb-4 text-sm text-slate-600">Esta acción no se puede deshacer.</p>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setPendingDeleteId(null)} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancelar</button>
-              <button type="button" onClick={handleConfirmDelete} disabled={!!isDeleting} className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">{isDeleting ? 'Eliminando...' : 'Eliminar'}</button>
+              <button
+                type="button"
+                onClick={() => setPendingDeleteId(null)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={!!isDeleting}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {isDeleting ? "Eliminando..." : "Eliminar"}
+              </button>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   compress: true,
-  serverExternalPackages: ['@supabase/supabase-js'],
+  serverExternalPackages: ["@supabase/supabase-js"],
 };
 
 module.exports = nextConfig;

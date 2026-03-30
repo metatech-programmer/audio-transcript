@@ -1,21 +1,21 @@
-
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Globe, FileText } from 'lucide-react';
-import { useAppStore } from '@/lib/store';
-import { useAudioRecorder } from '@/hooks/useRecorder';
-import { useSummarization } from '@/hooks/useTranscription';
-import { formatDuration, transcribeAudio } from '@/lib/utils';
-import TestPhase from './TestPhase';
-import SoundWaves from './SoundWaves';
-import SubjectSelector from './SubjectSelector';
-import type { Session, Summary } from '@/lib/types';
-import { getAllFailedChunks } from '@/lib/idb';
+import React, { useState, useEffect, useRef } from "react";
+import { Mic, Globe, FileText } from "lucide-react";
+import { useAppStore } from "@/lib/store";
+import { useAudioRecorder } from "@/hooks/useRecorder";
+import { useSummarization } from "@/hooks/useTranscription";
+import { formatDuration, transcribeAudio } from "@/lib/utils";
+import TestPhase from "./TestPhase";
+import SoundWaves from "./SoundWaves";
+import SubjectSelector from "./SubjectSelector";
+import type { Session, Summary } from "@/lib/types";
+import { getAllFailedChunks } from "@/lib/idb";
 
 // Helper para estimar el uso de localStorage
 function getLocalStorageUsage() {
-  if (typeof window === 'undefined' || !window.localStorage) return { used: 0, max: 5 * 1024 * 1024 };
+  if (typeof window === "undefined" || !window.localStorage)
+    return { used: 0, max: 5 * 1024 * 1024 };
   let total = 0;
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -40,7 +40,7 @@ export default function RecorderComponent({
   const [showTestPhase, setShowTestPhase] = useState(false);
   const [testPassed, setTestPassed] = useState(false);
   // Nueva opción: fuente de audio
-  const [audioSource, setAudioSource] = useState<'mic' | 'tab' | 'system'>('mic');
+  const [audioSource, setAudioSource] = useState<"mic" | "tab" | "system">("mic");
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   // Detector visual de nivel de audio de la fuente seleccionada
@@ -66,22 +66,40 @@ export default function RecorderComponent({
     reconstructPersistedTranscriptDetails,
   } = useAudioRecorder() as any;
 
-  const [persistedInfo, setPersistedInfo] = useState<{ text: string; count: number; lastSavedAt: string | null }>({ text: '', count: 0, lastSavedAt: null });
+  const [persistedInfo, setPersistedInfo] = useState<{
+    text: string;
+    count: number;
+    lastSavedAt: string | null;
+  }>({ text: "", count: 0, lastSavedAt: null });
 
   // Poll persisted transcript details while recording (shows incremental save progress)
-  const recIsRecording = typeof isRecording === 'boolean' ? isRecording : false;
+  const recIsRecording = typeof isRecording === "boolean" ? isRecording : false;
   useEffect(() => {
     let id: number | null = null;
     const poll = async () => {
       try {
-        if (typeof reconstructPersistedTranscriptDetails === 'function') {
+        if (typeof reconstructPersistedTranscriptDetails === "function") {
           const d = await reconstructPersistedTranscriptDetails();
           // Actualiza info persistida si cambió (sin logs de depuración)
-          if (d && (d.count !== persistedInfo.count || d.lastSavedAt !== persistedInfo.lastSavedAt)) {
-            setPersistedInfo({ text: d.text || '', count: d.count || 0, lastSavedAt: d.lastSavedAt || null });
+          if (
+            d &&
+            (d.count !== persistedInfo.count || d.lastSavedAt !== persistedInfo.lastSavedAt)
+          ) {
+            setPersistedInfo({
+              text: d.text || "",
+              count: d.count || 0,
+              lastSavedAt: d.lastSavedAt || null,
+            });
           }
-          if (d && (d.count !== persistedInfo.count || d.lastSavedAt !== persistedInfo.lastSavedAt)) {
-            setPersistedInfo({ text: d.text || '', count: d.count || 0, lastSavedAt: d.lastSavedAt || null });
+          if (
+            d &&
+            (d.count !== persistedInfo.count || d.lastSavedAt !== persistedInfo.lastSavedAt)
+          ) {
+            setPersistedInfo({
+              text: d.text || "",
+              count: d.count || 0,
+              lastSavedAt: d.lastSavedAt || null,
+            });
           }
         }
       } catch (e) {
@@ -98,18 +116,27 @@ export default function RecorderComponent({
       void poll();
     }
 
-    return () => { if (id) window.clearInterval(id); };
-  }, [recIsRecording, reconstructPersistedTranscriptDetails, persistedInfo.count, persistedInfo.lastSavedAt]);
+    return () => {
+      if (id) window.clearInterval(id);
+    };
+  }, [
+    recIsRecording,
+    reconstructPersistedTranscriptDetails,
+    persistedInfo.count,
+    persistedInfo.lastSavedAt,
+  ]);
 
   // Stop any existing persistent recorder when switching to tab/system capture
   const stopPreviewStream = () => {
     if (previewAnimationRef.current) cancelAnimationFrame(previewAnimationRef.current);
     if (previewAnalyserRef.current) previewAnalyserRef.current.disconnect();
     if (previewAudioContextRef.current) {
-      try { previewAudioContextRef.current.close(); } catch {}
+      try {
+        previewAudioContextRef.current.close();
+      } catch {}
     }
     if (previewStreamRef.current) {
-      previewStreamRef.current.getTracks().forEach(track => track.stop());
+      previewStreamRef.current.getTracks().forEach((track) => track.stop());
       previewStreamRef.current = null;
     }
     previewAnalyserRef.current = null;
@@ -118,11 +145,11 @@ export default function RecorderComponent({
     setPreviewLevel(0);
   };
 
-  const startPreviewStream = async (source: 'mic' | 'tab' | 'system', deviceId?: string | null) => {
+  const startPreviewStream = async (source: "mic" | "tab" | "system", deviceId?: string | null) => {
     stopPreviewStream();
     try {
       let stream: MediaStream | null = null;
-      if (source === 'mic') {
+      if (source === "mic") {
         const constraints: MediaStreamConstraints = {
           audio: {
             echoCancellation: true,
@@ -134,14 +161,17 @@ export default function RecorderComponent({
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } else {
         // tab/system
-        const disp = await navigator.mediaDevices.getDisplayMedia({ audio: true as any, video: true as any });
+        const disp = await navigator.mediaDevices.getDisplayMedia({
+          audio: true as any,
+          video: true as any,
+        });
         const audioTracks = disp.getAudioTracks();
         const videoTracks = disp.getVideoTracks();
-        videoTracks.forEach(t => t.stop());
+        videoTracks.forEach((t) => t.stop());
         if (audioTracks.length > 0) {
           stream = new MediaStream(audioTracks.map((t) => t));
         } else {
-          disp.getTracks().forEach(t => t.stop());
+          disp.getTracks().forEach((t) => t.stop());
           setPreviewLevel(0);
           return;
         }
@@ -169,16 +199,22 @@ export default function RecorderComponent({
     }
   };
 
-  const handleAudioSourceChange = async (value: 'mic' | 'tab' | 'system') => {
+  const handleAudioSourceChange = async (value: "mic" | "tab" | "system") => {
     setAudioSource(value);
     stopPreviewStream();
-    if (value === 'tab' || value === 'system') {
+    if (value === "tab" || value === "system") {
       try {
-        const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+        const hostController =
+          typeof window !== "undefined" ? (window as any).__recorderController : null;
         if (hostController && hostController.isRecording) {
           try {
             await hostController.stopRecording();
-            try { addToast('info', 'Se detuvo la grabación previa para evitar interferencias con la fuente compartida.'); } catch {}
+            try {
+              addToast(
+                "info",
+                "Se detuvo la grabación previa para evitar interferencias con la fuente compartida."
+              );
+            } catch {}
           } catch (e) {
             // ignore errors stopping host
           }
@@ -186,20 +222,25 @@ export default function RecorderComponent({
       } catch {}
     }
     // Lanzar preview de nivel de audio para la fuente seleccionada
-    setTimeout(() => startPreviewStream(value, value === 'mic' ? selectedDeviceId : undefined), 200);
+    setTimeout(
+      () => startPreviewStream(value, value === "mic" ? selectedDeviceId : undefined),
+      200
+    );
   };
 
   // Cuando cambia el micrófono seleccionado, reiniciar preview si corresponde
   useEffect(() => {
-    if (audioSource === 'mic') {
+    if (audioSource === "mic") {
       stopPreviewStream();
-      setTimeout(() => startPreviewStream('mic', selectedDeviceId), 200);
+      setTimeout(() => startPreviewStream("mic", selectedDeviceId), 200);
     }
   }, [selectedDeviceId]);
 
   // Limpiar preview al desmontar
   useEffect(() => {
-    return () => { stopPreviewStream(); };
+    return () => {
+      stopPreviewStream();
+    };
   }, []);
 
   const [queuedItems, setQueuedItems] = useState<any[]>([]);
@@ -216,11 +257,13 @@ export default function RecorderComponent({
       }
     };
     void load();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [queuedCount, retrying]);
 
   function fmtTime(iso?: string) {
-    if (!iso) return '-';
+    if (!iso) return "-";
     const d = new Date(iso);
     const diff = Math.floor((Date.now() - d.getTime()) / 1000);
     if (diff < 60) return `${diff}s`;
@@ -228,8 +271,8 @@ export default function RecorderComponent({
     return `${Math.floor(diff / 3600)}h`;
   }
 
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
-  const isFirefox = ua.includes('firefox');
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
+  const isFirefox = ua.includes("firefox");
   const isSafari = /safari/.test(ua) && !/chrome|crios|crmo|edg/.test(ua);
   const isChromium = /chrome|crios|crmo|edg|brave/.test(ua);
 
@@ -237,15 +280,23 @@ export default function RecorderComponent({
     const loadDevices = async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioIns = devices.filter(d => d.kind === 'audioinput');
+        const audioIns = devices.filter((d) => d.kind === "audioinput");
         setAudioInputs(audioIns);
         const first = audioIns[0];
         // Auto-select known virtual devices if present (VB‑Cable, BlackHole, Stereo Mix, loopback)
-        const virtualRegex = /vb[- ]?cable|blackhole|stereo mix|loopback|virtual audio|cable input|vcable/i;
-        const preferred = audioIns.find(d => virtualRegex.test(d.label || ''));
+        const virtualRegex =
+          /vb[- ]?cable|blackhole|stereo mix|loopback|virtual audio|cable input|vcable/i;
+        const preferred = audioIns.find((d) => virtualRegex.test(d.label || ""));
         if (preferred && !selectedDeviceId) {
           setSelectedDeviceId(preferred.deviceId);
-          try { addToast('info', `Dispositivo virtual detectado: "${preferred.label || preferred.deviceId.slice(0,6)}" seleccionado automáticamente.`); } catch {}
+          try {
+            addToast(
+              "info",
+              `Dispositivo virtual detectado: "${
+                preferred.label || preferred.deviceId.slice(0, 6)
+              }" seleccionado automáticamente.`
+            );
+          } catch {}
         } else if (first && !selectedDeviceId) setSelectedDeviceId(first.deviceId);
       } catch (err) {
         // ignore
@@ -272,7 +323,7 @@ export default function RecorderComponent({
 
   const handleStart = async () => {
     // If user chose microphone and hasn't passed test, show test flow first
-    if (audioSource === 'mic' && !testPassed) {
+    if (audioSource === "mic" && !testPassed) {
       setShowTestPhase(true);
       return;
     }
@@ -287,12 +338,15 @@ export default function RecorderComponent({
     // Selección de fuente de audio
     let stream: MediaStream | undefined;
     try {
-      const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
-      const isFirefox = ua.includes('firefox');
-      if (isFirefox && (audioSource === 'tab' || audioSource === 'system')) {
-        addToast('info', 'Firefox limita la captura de audio de pestañas/sistema. Intentaremos un fallback automático.');
+      const ua = typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
+      const isFirefox = ua.includes("firefox");
+      if (isFirefox && (audioSource === "tab" || audioSource === "system")) {
+        addToast(
+          "info",
+          "Firefox limita la captura de audio de pestañas/sistema. Intentaremos un fallback automático."
+        );
       }
-      if (audioSource === 'mic') {
+      if (audioSource === "mic") {
         // Micrófono normal. If user selected a specific device, prefer it.
         const constraints: MediaStreamConstraints = {
           audio: {
@@ -303,46 +357,63 @@ export default function RecorderComponent({
           },
         };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } else if (audioSource === 'tab' || audioSource === 'system') {
+      } else if (audioSource === "tab" || audioSource === "system") {
         // Many browsers require video:true for the display picker to allow selecting a tab/window
         // and to enable the "share audio" option. Request both and then strip video tracks.
-          try {
-            const disp = await navigator.mediaDevices.getDisplayMedia({ audio: true as any, video: true as any });
-            const audioTracks = disp.getAudioTracks();
-            const videoTracks = disp.getVideoTracks();
-            // Remove video tracks before handing off to recorder to avoid capturing camera
-            videoTracks.forEach(t => t.stop());
+        try {
+          const disp = await navigator.mediaDevices.getDisplayMedia({
+            audio: true as any,
+            video: true as any,
+          });
+          const audioTracks = disp.getAudioTracks();
+          const videoTracks = disp.getVideoTracks();
+          // Remove video tracks before handing off to recorder to avoid capturing camera
+          videoTracks.forEach((t) => t.stop());
 
-            // If audio tracks found, create a new stream that contains ONLY those audio tracks
-            // This avoids accidentally including microphone tracks from elsewhere.
-            if (audioTracks.length > 0) {
-              const displayOnly = new MediaStream(audioTracks.map((t) => t));
-              stream = displayOnly;
-            } else {
-              // No audio tracks — do NOT fallback automatically to the microphone to avoid
-              // unintentionally recording the mic. Show help so the user can enable "Compartir audio".
-              disp.getTracks().forEach(t => t.stop());
-              addToast('error', 'No se detectó audio al compartir la pantalla/pestaña. Asegúrate de marcar "Compartir audio" en el diálogo del navegador.');
-              setShowAudioHelpModal(true);
-              return;
-            }
-          } catch (e) {
-            // If user cancels the display picker or browser blocks it
-            addToast('error', 'No se pudo abrir el selector de pantalla/pestaña. Revisa los permisos o prueba con Chrome/Edge/Brave.');
+          // If audio tracks found, create a new stream that contains ONLY those audio tracks
+          // This avoids accidentally including microphone tracks from elsewhere.
+          if (audioTracks.length > 0) {
+            const displayOnly = new MediaStream(audioTracks.map((t) => t));
+            stream = displayOnly;
+          } else {
+            // No audio tracks — do NOT fallback automatically to the microphone to avoid
+            // unintentionally recording the mic. Show help so the user can enable "Compartir audio".
+            disp.getTracks().forEach((t) => t.stop());
+            addToast(
+              "error",
+              'No se detectó audio al compartir la pantalla/pestaña. Asegúrate de marcar "Compartir audio" en el diálogo del navegador.'
+            );
             setShowAudioHelpModal(true);
             return;
           }
+        } catch (e) {
+          // If user cancels the display picker or browser blocks it
+          addToast(
+            "error",
+            "No se pudo abrir el selector de pantalla/pestaña. Revisa los permisos o prueba con Chrome/Edge/Brave."
+          );
+          setShowAudioHelpModal(true);
+          return;
+        }
       }
     } catch (err) {
-      addToast('error', 'No se pudo acceder a la fuente de audio seleccionada. Asegúrate de permitir el acceso en el diálogo del navegador.');
+      addToast(
+        "error",
+        "No se pudo acceder a la fuente de audio seleccionada. Asegúrate de permitir el acceso en el diálogo del navegador."
+      );
       return;
     }
 
     // If a persistent host controller exists, prefer it so the recording instance stays mounted across navigation
     try {
-      const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+      const hostController =
+        typeof window !== "undefined" ? (window as any).__recorderController : null;
       if (hostController && hostController.startRecording) {
-        await hostController.startRecording({ engineMode: 'auto', dialect: selectedDialect, stream });
+        await hostController.startRecording({
+          engineMode: "auto",
+          dialect: selectedDialect,
+          stream,
+        });
         return;
       }
     } catch (e) {
@@ -350,7 +421,7 @@ export default function RecorderComponent({
     }
 
     await startRecording({
-      engineMode: 'auto',
+      engineMode: "auto",
       dialect: selectedDialect,
       stream,
     });
@@ -367,20 +438,21 @@ export default function RecorderComponent({
     try {
       setIsProcessing(true);
       // prefer host controller if available (persistent recorder mounted in layout)
-      const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+      const hostController =
+        typeof window !== "undefined" ? (window as any).__recorderController : null;
       const stopFn = hostController?.stopRecording ?? stopRecording;
       const audioBlob = await stopFn();
 
       if (!audioBlob) {
-        throw new Error('No audio recorded');
+        throw new Error("No audio recorded");
       }
 
       // Process the recording; if stopped via host controller, host may have already
       // populated the store transcript. Pass a flag so we don't double-transcribe.
       await processRecording(audioBlob, Boolean(hostController));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Processing failed';
-      addToast('error', `No se pudo procesar la grabación: ${message}`);
+      const message = err instanceof Error ? err.message : "Processing failed";
+      addToast("error", `No se pudo procesar la grabación: ${message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -390,7 +462,7 @@ export default function RecorderComponent({
   const processRecording = async (audioBlob: Blob, transcriptAlreadySet = false) => {
     if (!audioBlob) return;
 
-    let transcriptText = recorder.transcript?.trim() || '';
+    let transcriptText = recorder.transcript?.trim() || "";
 
     try {
       if (!transcriptAlreadySet) {
@@ -399,20 +471,29 @@ export default function RecorderComponent({
       }
 
       // Siempre usar la reconstrucción incremental para guardar y resumir
-      let persisted = '';
-      if (typeof reconstructPersistedTranscript === 'function') {
+      let persisted = "";
+      if (typeof reconstructPersistedTranscript === "function") {
         persisted = await reconstructPersistedTranscript();
       }
-      let finalTranscript = (persisted && persisted.length > 0) ? persisted : (transcriptText || '').trim();
+      let finalTranscript =
+        persisted && persisted.length > 0 ? persisted : (transcriptText || "").trim();
 
       if (!finalTranscript || !finalTranscript.trim()) {
-        addToast('info', 'No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar.');
+        addToast(
+          "info",
+          "No detectamos voz con claridad. Intenta hablar un poco más cerca del micrófono y vuelve a grabar."
+        );
         return;
       }
 
       // Log/alert si la transcripción es sospechosamente corta
       if (finalTranscript.split(/\s+/).length < 20) {
-        try { addToast('warning', '¡Advertencia! La transcripción reconstruida es muy corta. Puede que haya un problema con el guardado incremental.'); } catch {}
+        try {
+          addToast(
+            "warning",
+            "¡Advertencia! La transcripción reconstruida es muy corta. Puede que haya un problema con el guardado incremental."
+          );
+        } catch {}
       }
 
       setTranscript(finalTranscript.trim());
@@ -428,18 +509,15 @@ export default function RecorderComponent({
           summary = await summarize(transcriptText.trim(), recorder.language);
           setSummaryFailed(null);
         } catch (err) {
-          summaryError = err instanceof Error ? err.message : 'Auto-summarize failed';
+          summaryError = err instanceof Error ? err.message : "Auto-summarize failed";
           setSummaryFailed(summaryError);
-          console.error('Auto-summarize failed:', err);
+          console.error("Auto-summarize failed:", err);
         }
       }
 
-        if (onCreateSession) {
+      if (onCreateSession) {
         const now = new Date().toISOString();
-        const titleFromTranscript = transcriptText
-          .split(/\s+/)
-          .slice(0, 8)
-          .join(' ');
+        const titleFromTranscript = transcriptText.split(/\s+/).slice(0, 8).join(" ");
 
         const savedSession = await onCreateSession({
           title: titleFromTranscript
@@ -448,9 +526,9 @@ export default function RecorderComponent({
           date: now,
           duration,
           language: recorder.language,
-            transcript: transcriptText.trim(),
-            summary: summary || undefined,
-            subject: selectedSubject || undefined,
+          transcript: transcriptText.trim(),
+          summary: summary || undefined,
+          subject: selectedSubject || undefined,
           tags: [],
           createdAt: now,
           updatedAt: now,
@@ -458,15 +536,21 @@ export default function RecorderComponent({
 
         onSessionSaved?.(savedSession);
         if (summary) {
-          addToast('success', 'Sesión guardada correctamente (con resumen).');
+          addToast("success", "Sesión guardada correctamente (con resumen).");
         } else {
-          addToast('warning', `Sesión guardada solo con transcripción.\n${summaryError ? 'No se pudo generar el resumen: ' + summaryError : ''}`);
+          addToast(
+            "warning",
+            `Sesión guardada solo con transcripción.\n${
+              summaryError ? "No se pudo generar el resumen: " + summaryError : ""
+            }`
+          );
         }
       }
 
       // Clear queued items for this session (they're now saved) and refresh UI
       try {
-        const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+        const hostController =
+          typeof window !== "undefined" ? (window as any).__recorderController : null;
         await hostController?.clearQueue?.(hostController?.sessionId);
         setQueuedItems([]);
       } catch {}
@@ -476,7 +560,7 @@ export default function RecorderComponent({
         resetRecorder();
       } catch {}
     } catch (err) {
-      console.error('processRecording error', err);
+      console.error("processRecording error", err);
       throw err;
     } finally {
       setStore_Summarizing(false);
@@ -485,7 +569,7 @@ export default function RecorderComponent({
 
   const handleRetrySummary = async () => {
     if (!recorder.transcript || recorder.transcript.trim().length === 0) {
-      addToast('info', 'No hay transcripción para resumir.');
+      addToast("info", "No hay transcripción para resumir.");
       return;
     }
     try {
@@ -493,26 +577,25 @@ export default function RecorderComponent({
       setSummaryFailed(null);
       const s = await summarize(recorder.transcript.trim(), recorder.language);
       if (!s) {
-        setSummaryFailed('No se generó resumen.');
-        addToast('error', 'No se pudo generar el resumen.');
+        setSummaryFailed("No se generó resumen.");
+        addToast("error", "No se pudo generar el resumen.");
         return;
       }
 
       if (!onCreateSession) {
         // If parent didn't supply a create handler, just notify
-        addToast('success', 'Resumen generado (local) — no hay handler para crear sesión.');
+        addToast("success", "Resumen generado (local) — no hay handler para crear sesión.");
         return;
       }
 
       // Create session as normal flow (title, meta, transcript, summary)
       const now = new Date().toISOString();
-      const titleFromTranscript = recorder.transcript
-        .split(/\s+/)
-        .slice(0, 8)
-        .join(' ');
+      const titleFromTranscript = recorder.transcript.split(/\s+/).slice(0, 8).join(" ");
 
       const savedSession = await onCreateSession({
-        title: titleFromTranscript ? `${titleFromTranscript}...` : `Lecture ${new Date().toLocaleString()}`,
+        title: titleFromTranscript
+          ? `${titleFromTranscript}...`
+          : `Lecture ${new Date().toLocaleString()}`,
         date: now,
         duration,
         language: recorder.language,
@@ -525,20 +608,23 @@ export default function RecorderComponent({
       });
 
       onSessionSaved?.(savedSession);
-      addToast('success', 'Resumen regenerado y sesión guardada.');
+      addToast("success", "Resumen regenerado y sesión guardada.");
 
       // Clear queued items for this session and refresh UI
       try {
-        const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+        const hostController =
+          typeof window !== "undefined" ? (window as any).__recorderController : null;
         await hostController?.clearQueue?.(hostController?.sessionId);
         setQueuedItems([]);
       } catch {}
 
-      try { resetRecorder(); } catch {}
+      try {
+        resetRecorder();
+      } catch {}
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Resumen fallido';
+      const msg = err instanceof Error ? err.message : "Resumen fallido";
       setSummaryFailed(msg);
-      addToast('error', `Reintento falló: ${msg}`);
+      addToast("error", `Reintento falló: ${msg}`);
     } finally {
       setStore_Summarizing(false);
     }
@@ -550,7 +636,8 @@ export default function RecorderComponent({
       if (isRecording) {
         try {
           // Use host controller if present to ensure single instance stop
-          const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
+          const hostController =
+            typeof window !== "undefined" ? (window as any).__recorderController : null;
           if (hostController && hostController.stopRecording) {
             const audioBlob = await hostController.stopRecording();
             // Process using the existing transcript set by host, only if audio returned
@@ -566,8 +653,8 @@ export default function RecorderComponent({
       }
     };
 
-    window.addEventListener('app-stop-recording', onExternalStop as EventListener);
-    return () => window.removeEventListener('app-stop-recording', onExternalStop as EventListener);
+    window.addEventListener("app-stop-recording", onExternalStop as EventListener);
+    return () => window.removeEventListener("app-stop-recording", onExternalStop as EventListener);
   }, [isRecording]);
 
   // Show test phase if not passed
@@ -591,7 +678,8 @@ export default function RecorderComponent({
       {/* Advertencia si localStorage está casi lleno */}
       {lsWarning && (
         <div className="mb-4 p-3 rounded bg-yellow-100 text-yellow-800 border border-yellow-300 text-sm">
-          <b>Advertencia:</b> El almacenamiento local del navegador está casi lleno. Si la grabación es muy larga, podrías perder fragmentos. Considera guardar el respaldo o finalizar pronto.
+          <b>Advertencia:</b> El almacenamiento local del navegador está casi lleno. Si la grabación
+          es muy larga, podrías perder fragmentos. Considera guardar el respaldo o finalizar pronto.
         </div>
       )}
 
@@ -599,20 +687,58 @@ export default function RecorderComponent({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-2xl bg-white rounded-lg p-6 shadow-lg">
             <h3 className="text-lg font-semibold mb-3">No se pudo capturar audio</h3>
-            <p className="text-sm text-slate-700 mb-4">Algunos navegadores (p. ej. Firefox) no permiten capturar audio de pestañas/sistema directamente. Puedes usar una de las opciones automáticas o seguir la guía rápida:</p>
+            <p className="text-sm text-slate-700 mb-4">
+              Algunos navegadores (p. ej. Firefox) no permiten capturar audio de pestañas/sistema
+              directamente. Puedes usar una de las opciones automáticas o seguir la guía rápida:
+            </p>
             <ul className="list-disc pl-5 text-sm text-slate-700 mb-4">
-              <li>Usar Chrome/Edge/Brave y marcar "Compartir audio" cuando compartas la pestaña/ventana.</li>
-              <li>Instalar un cable de audio virtual (Windows: VB-Cable, macOS: BlackHole) y seleccionarlo como micrófono en la app.</li>
+              <li>
+                Usar Chrome/Edge/Brave y marcar "Compartir audio" cuando compartas la
+                pestaña/ventana.
+              </li>
+              <li>
+                Instalar un cable de audio virtual (Windows: VB-Cable, macOS: BlackHole) y
+                seleccionarlo como micrófono en la app.
+              </li>
               <li>Usar un dispositivo físico de loopback si lo tienes.</li>
             </ul>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => {
-                const text = `Guía rápida:\n\n1) Si usas Firefox: instala VB-Cable (Windows) o BlackHole (macOS) y configúralo como dispositivo de entrada.\n2) Reinicia el navegador y selecciona ese dispositivo en la opción "Seleccionar micrófono".\n3) Para captura de pestaña en Chrome/Edge/Brave, al compartir, marca 'Compartir audio'.`;
-                try { navigator.clipboard.writeText(text); addToast('success','Instrucciones copiadas'); } catch { addToast('error','No se pudo copiar'); }
-              }} className="px-3 py-2 border rounded">Copiar instrucciones</button>
-              <button onClick={() => { window.open('https://www.vb-audio.com/Cable/', '_blank'); }} className="px-3 py-2 border rounded">VB-Cable (Windows)</button>
-              <button onClick={() => { window.open('https://github.com/ExistentialAudio/BlackHole', '_blank'); }} className="px-3 py-2 border rounded">BlackHole (macOS)</button>
-              <button onClick={() => setShowAudioHelpModal(false)} className="px-3 py-2 bg-slate-900 text-white rounded">Cerrar</button>
+              <button
+                onClick={() => {
+                  const text = `Guía rápida:\n\n1) Si usas Firefox: instala VB-Cable (Windows) o BlackHole (macOS) y configúralo como dispositivo de entrada.\n2) Reinicia el navegador y selecciona ese dispositivo en la opción "Seleccionar micrófono".\n3) Para captura de pestaña en Chrome/Edge/Brave, al compartir, marca 'Compartir audio'.`;
+                  try {
+                    navigator.clipboard.writeText(text);
+                    addToast("success", "Instrucciones copiadas");
+                  } catch {
+                    addToast("error", "No se pudo copiar");
+                  }
+                }}
+                className="px-3 py-2 border rounded"
+              >
+                Copiar instrucciones
+              </button>
+              <button
+                onClick={() => {
+                  window.open("https://www.vb-audio.com/Cable/", "_blank");
+                }}
+                className="px-3 py-2 border rounded"
+              >
+                VB-Cable (Windows)
+              </button>
+              <button
+                onClick={() => {
+                  window.open("https://github.com/ExistentialAudio/BlackHole", "_blank");
+                }}
+                className="px-3 py-2 border rounded"
+              >
+                BlackHole (macOS)
+              </button>
+              <button
+                onClick={() => setShowAudioHelpModal(false)}
+                className="px-3 py-2 bg-slate-900 text-white rounded"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
@@ -644,44 +770,74 @@ export default function RecorderComponent({
 
             {/* Settings Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-10 items-start min-w-0">
-
               {/* Fuente de audio */}
-                <div className="space-y-1.5 min-w-0">
-                  <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
-                    Fuente de audio
-                  </label>
-                  <select value={audioSource} onChange={(e) => void handleAudioSourceChange(e.target.value as any)} className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[60dvw] md:max-w-[40dvw] lg:max-w-[25dvw]">
-                      <option value="mic">Micrófono</option>
-                      <option value="tab">Pestaña</option>
-                      <option value="system">Sistema</option>
-                    </select>
+              <div className="space-y-1.5 min-w-0">
+                <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-slate-400"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 8v4l3 3"></path>
+                  </svg>
+                  Fuente de audio
+                </label>
+                <select
+                  value={audioSource}
+                  onChange={(e) => void handleAudioSourceChange(e.target.value as any)}
+                  className="w-full mt-2 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[60dvw] md:max-w-[40dvw] lg:max-w-[25dvw]"
+                >
+                  <option value="mic">Micrófono</option>
+                  <option value="tab">Pestaña</option>
+                  <option value="system">Sistema</option>
+                </select>
 
-                {(audioSource === 'tab' || audioSource === 'system') && (isFirefox || isSafari) && (
+                {(audioSource === "tab" || audioSource === "system") && (isFirefox || isSafari) && (
                   <div className="mt-2 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
-                    Nota: {isFirefox ? 'Firefox' : 'Safari'} limita la captura directa de audio de pestañas/sistema. Para grabar audio del PC o de una pestaña, usa <strong>Chrome</strong>, <strong>Edge</strong> o <strong>Brave</strong>, o instala un cable de audio virtual (VB‑Cable / BlackHole) y selecciónalo como micrófono.
+                    Nota: {isFirefox ? "Firefox" : "Safari"} limita la captura directa de audio de
+                    pestañas/sistema. Para grabar audio del PC o de una pestaña, usa{" "}
+                    <strong>Chrome</strong>, <strong>Edge</strong> o <strong>Brave</strong>, o
+                    instala un cable de audio virtual (VB‑Cable / BlackHole) y selecciónalo como
+                    micrófono.
                     <div className="mt-2 flex gap-2">
-                      <button onClick={() => setShowAudioHelpModal(true)} className="px-3 py-1 bg-white border rounded">Ver guía</button>
+                      <button
+                        onClick={() => setShowAudioHelpModal(true)}
+                        className="px-3 py-1 bg-white border rounded"
+                      >
+                        Ver guía
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {(audioSource === 'tab' || audioSource === 'system') && (
-                  <div className="mt-2 text-sm text-slate-600">Nota: Solo se grabará el audio compartido (pestaña/ventana/sistema). El micrófono no será usado automáticamente para evitar interferencias.</div>
+                {(audioSource === "tab" || audioSource === "system") && (
+                  <div className="mt-2 text-sm text-slate-600">
+                    Nota: Solo se grabará el audio compartido (pestaña/ventana/sistema). El
+                    micrófono no será usado automáticamente para evitar interferencias.
+                  </div>
                 )}
 
-                {audioSource === 'mic' && (
+                {audioSource === "mic" && (
                   <div className="mt-2 min-w-0">
                     <label className="text-[12px] text-slate-600">Seleccionar micrófono</label>
                     <select
-                      value={selectedDeviceId ?? ''}
-                      onChange={e => setSelectedDeviceId(e.target.value || null)}
+                      value={selectedDeviceId ?? ""}
+                      onChange={(e) => setSelectedDeviceId(e.target.value || null)}
                       disabled={isRecording}
-                        className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[60dvw] md:max-w-[40dvw] lg:max-w-[25dvw]"
+                      className="w-full mt-1 px-3 py-2 bg-white border border-[#EAEAEB] rounded-md text-[13px] text-slate-800 shadow-sm min-w-0 truncate overflow-hidden max-w-[60dvw] md:max-w-[40dvw] lg:max-w-[25dvw]"
                     >
                       {audioInputs.length === 0 && <option value="">Predeterminado</option>}
-                      {audioInputs.map(d => (
-                        <option key={d.deviceId} value={d.deviceId}>{d.label || 'Micrófono ' + d.deviceId.slice(0,6)}</option>
+                      {audioInputs.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || "Micrófono " + d.deviceId.slice(0, 6)}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -696,7 +852,7 @@ export default function RecorderComponent({
                   </label>
                   <select
                     value={recorder.language}
-                    onChange={(e) => setLanguage(e.target.value as 'en' | 'es')}
+                    onChange={(e) => setLanguage(e.target.value as "en" | "es")}
                     disabled={isRecording}
                     className="w-full px-3 py-2 bg-[#F9F9FA] border border-[#EAEAEB] rounded-md text-[13px] text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:bg-white disabled:opacity-50 transition-colors shadow-sm min-w-0 truncate overflow-hidden max-w-[50dvw] md:max-w-[36dvw] lg:max-w-[24dvw]"
                   >
@@ -707,7 +863,20 @@ export default function RecorderComponent({
 
                 <div className="space-y-1.5 min-w-0">
                   <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-1.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12 2.1 12A10 10 0 0 1 12 2z"></path></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-slate-400"
+                    >
+                      <path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+                      <path d="M12 12 2.1 12A10 10 0 0 1 12 2z"></path>
+                    </svg>
                     Dialect
                   </label>
                   <select
@@ -732,7 +901,10 @@ export default function RecorderComponent({
 
             {/* Timer Display */}
             <div className="mb-8 p-8 flex flex-col items-center justify-center relative">
-              <div className="text-6xl font-semibold tracking-tighter text-slate-900 mb-3" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <div
+                className="text-6xl font-semibold tracking-tighter text-slate-900 mb-3"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
                 {formatDuration(duration)}
               </div>
               {/* Persisted transcript indicator */}
@@ -742,27 +914,45 @@ export default function RecorderComponent({
                   <div>
                     <div className="text-xs">Transcripción guardada:</div>
                     <div className="text-sm font-medium">
-                      {persistedInfo.count > 0 ? `${persistedInfo.count} fragmentos · ${Math.max(0, persistedInfo.text.split(/\s+/).length)} palabras` : '0 fragmentos'}
+                      {persistedInfo.count > 0
+                        ? `${persistedInfo.count} fragmentos · ${Math.max(
+                            0,
+                            persistedInfo.text.split(/\s+/).length
+                          )} palabras`
+                        : "0 fragmentos"}
                     </div>
                   </div>
                 </div>
-                {persistedInfo.lastSavedAt && <div className="text-xs text-slate-500">último guardado: {new Date(persistedInfo.lastSavedAt).toLocaleTimeString()}</div>}
+                {persistedInfo.lastSavedAt && (
+                  <div className="text-xs text-slate-500">
+                    último guardado: {new Date(persistedInfo.lastSavedAt).toLocaleTimeString()}
+                  </div>
+                )}
                 {persistedInfo.count > 0 && (
-                  <button onClick={() => {
-                    try {
-                      const blob = new Blob([persistedInfo.text || ''], { type: 'text/plain;charset=utf-8' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `transcript_${new Date().toISOString()}.txt`;
-                      document.body.appendChild(a);
-                      a.click();
-                      a.remove();
-                      URL.revokeObjectURL(url);
-                    } catch (e) {
-                      try { addToast('error', 'No se pudo descargar la transcripción.'); } catch {}
-                    }
-                  }} className="ml-2 px-2 py-1 text-xs bg-white border rounded">Descargar</button>
+                  <button
+                    onClick={() => {
+                      try {
+                        const blob = new Blob([persistedInfo.text || ""], {
+                          type: "text/plain;charset=utf-8",
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `transcript_${new Date().toISOString()}.txt`;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        URL.revokeObjectURL(url);
+                      } catch (e) {
+                        try {
+                          addToast("error", "No se pudo descargar la transcripción.");
+                        } catch {}
+                      }
+                    }}
+                    className="ml-2 px-2 py-1 text-xs bg-white border rounded"
+                  >
+                    Descargar
+                  </button>
                 )}
               </div>
               {isRecording && (
@@ -773,10 +963,12 @@ export default function RecorderComponent({
               )}
             </div>
 
-
             {/* Sound Waves Animation y Transcripción en tiempo real */}
             <div className="mb-4 rounded-xl bg-[#F9F9FA] border border-[#EAEAEB] p-6 h-28 flex items-center justify-center">
-              <SoundWaves isActive={isRecording || previewLevel > 0.5} audioLevel={isRecording ? audioLevel : previewLevel} />
+              <SoundWaves
+                isActive={isRecording || previewLevel > 0.5}
+                audioLevel={isRecording ? audioLevel : previewLevel}
+              />
             </div>
             {isRecording && (
               <div className="mb-8">
@@ -786,11 +978,13 @@ export default function RecorderComponent({
                   </h3>
                   <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
                     {/* Mostrar el transcript incremental en tiempo real si existe, si no el persistido, si no el placeholder */}
-                    {recorder.transcript && recorder.transcript.trim().length > 0
-                      ? recorder.transcript
-                      : (persistedInfo.text && persistedInfo.text.trim().length > 0
-                        ? persistedInfo.text
-                        : <span className="italic text-slate-400">Esperando audio...</span>)}
+                    {recorder.transcript && recorder.transcript.trim().length > 0 ? (
+                      recorder.transcript
+                    ) : persistedInfo.text && persistedInfo.text.trim().length > 0 ? (
+                      persistedInfo.text
+                    ) : (
+                      <span className="italic text-slate-400">Esperando audio...</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -813,7 +1007,18 @@ export default function RecorderComponent({
                   disabled={isProcessing}
                   className="flex flex-1 items-center justify-center gap-2 px-6 py-2.5 rounded-md font-medium text-[14px] text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50 shadow-sm"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  </svg>
                   Detener grabación
                 </button>
               )}
@@ -825,9 +1030,7 @@ export default function RecorderComponent({
                 <div className="inline-flex items-center gap-2.5">
                   <div className="h-3.5 w-3.5 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
                   <span className="text-[13px] text-slate-700 font-medium">
-                    {duration > 5
-                      ? 'Generating insights & summary...'
-                      : 'Processing audio...'}
+                    {duration > 5 ? "Generating insights & summary..." : "Processing audio..."}
                   </span>
                 </div>
               </div>
@@ -843,27 +1046,49 @@ export default function RecorderComponent({
                     <div className="h-2.5 w-2.5 rounded-full bg-orange-400" />
                   )}
                   <span>
-                    {retrying ? 'Reintentando envíos pendientes...' : 'Envíos pendientes:'} {queuedCount}
+                    {retrying ? "Reintentando envíos pendientes..." : "Envíos pendientes:"}{" "}
+                    {queuedCount}
                   </span>
-                  <button onClick={() => setShowQueueDetails((s) => !s)} className="ml-3 px-2 py-1 text-xs border rounded bg-white">Detalles</button>
-                  <button onClick={() => void triggerRetry?.()} className="ml-2 px-2 py-1 text-xs border rounded bg-white">Reintentar ahora</button>
+                  <button
+                    onClick={() => setShowQueueDetails((s) => !s)}
+                    className="ml-3 px-2 py-1 text-xs border rounded bg-white"
+                  >
+                    Detalles
+                  </button>
+                  <button
+                    onClick={() => void triggerRetry?.()}
+                    className="ml-2 px-2 py-1 text-xs border rounded bg-white"
+                  >
+                    Reintentar ahora
+                  </button>
                 </div>
 
                 {showQueueDetails && (
                   <div className="absolute left-1/2 -translate-x-1/2 mt-3 w-[28rem] max-w-full bg-white border rounded shadow-lg p-3 text-left text-xs z-50">
                     <div className="flex items-center justify-between mb-2">
                       <strong>Historial de reintentos ({queuedItems.length})</strong>
-                      <button onClick={() => setShowQueueDetails(false)} className="px-2 py-1 text-xs">Cerrar</button>
+                      <button
+                        onClick={() => setShowQueueDetails(false)}
+                        className="px-2 py-1 text-xs"
+                      >
+                        Cerrar
+                      </button>
                     </div>
                     <div className="max-h-48 overflow-y-auto">
-                      {queuedItems.length === 0 && <div className="text-slate-600">No hay elementos en la cola.</div>}
+                      {queuedItems.length === 0 && (
+                        <div className="text-slate-600">No hay elementos en la cola.</div>
+                      )}
                       {queuedItems.map((it: any) => (
                         <div key={it.id} className="py-1 border-b last:border-b-0">
                           <div className="flex items-center justify-between">
-                            <div className="text-slate-700 truncate-ellipsis max-w-dvw-60 flex-truncate">{it.sessionId || '—'}</div>
+                            <div className="text-slate-700 truncate-ellipsis max-w-dvw-60 flex-truncate">
+                              {it.sessionId || "—"}
+                            </div>
                             <div className="text-slate-500">chunk #{it.chunkIndex}</div>
                           </div>
-                          <div className="text-slate-500">Guardado: {fmtTime(it.createdAt)} atrás · id: {it.id.slice(0, 12)}</div>
+                          <div className="text-slate-500">
+                            Guardado: {fmtTime(it.createdAt)} atrás · id: {it.id.slice(0, 12)}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -877,7 +1102,8 @@ export default function RecorderComponent({
               <div className="mb-6">
                 <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
                   <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
-                    <FileText size={14} className="text-slate-500" /> Vista previa de la transcripción
+                    <FileText size={14} className="text-slate-500" /> Vista previa de la
+                    transcripción
                   </h3>
                   <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
                     {recorder.transcript}
@@ -890,13 +1116,20 @@ export default function RecorderComponent({
                           {summarizing ? (
                             <div className="h-3.5 w-3.5 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
                           ) : (
-                            <button onClick={() => void handleRetrySummary()} className="px-3 py-1 text-sm border rounded bg-white">Reintentar resumen</button>
+                            <button
+                              onClick={() => void handleRetrySummary()}
+                              className="px-3 py-1 text-sm border rounded bg-white"
+                            >
+                              Reintentar resumen
+                            </button>
                           )}
                         </div>
                       </div>
 
                       {summaryFailed && (
-                        <div className="mt-3 p-2 rounded bg-red-50 border border-red-100 text-sm text-red-700">Error: {summaryFailed}</div>
+                        <div className="mt-3 p-2 rounded bg-red-50 border border-red-100 text-sm text-red-700">
+                          Error: {summaryFailed}
+                        </div>
                       )}
                     </>
                   )}
@@ -907,13 +1140,16 @@ export default function RecorderComponent({
             {/* Info Box (hidden while recording) */}
             {!isRecording && (
               <div className="text-center text-[12px] text-slate-500 mt-2">
-                Speak clearly for best accuracy. Summary generation is automatic.<br />
+                Speak clearly for best accuracy. Summary generation is automatic.
+                <br />
                 <span className="block mt-2 text-orange-500 font-semibold">
                   ⚠️ Para grabaciones largas (&gt;2 horas):
                   <br />
-                  - Recomendado grabar en segmentos de 1-2 horas para mayor seguridad.<br />
-                  - Si la transcripción es muy larga, puede que el resumen falle, pero la transcripción completa siempre se guardará.<br />
-                  - El procesamiento de grabaciones muy largas puede tardar varios minutos.
+                  - Recomendado grabar en segmentos de 1-2 horas para mayor seguridad.
+                  <br />
+                  - Si la transcripción es muy larga, puede que el resumen falle, pero la
+                  transcripción completa siempre se guardará.
+                  <br />- El procesamiento de grabaciones muy largas puede tardar varios minutos.
                 </span>
               </div>
             )}

@@ -13,11 +13,9 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% 12%, #fff1f2 0%, transparent 35%),
+  background: radial-gradient(circle at 12% 12%, #fff1f2 0%, transparent 35%),
     radial-gradient(circle at 84% 0%, #fef3c7 0%, transparent 30%),
-    radial-gradient(circle at 90% 92%, #e0f2fe 0%, transparent 28%),
-    #f8fafc;
+    radial-gradient(circle at 90% 92%, #e0f2fe 0%, transparent 28%), #f8fafc;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   position: relative;
@@ -26,7 +24,7 @@ body {
 
 /* Animated background shapes */
 body::before {
-  content: '';
+  content: "";
   position: fixed;
   top: -50%;
   right: -10%;
@@ -40,7 +38,7 @@ body::before {
 }
 
 body::after {
-  content: '';
+  content: "";
   position: fixed;
   bottom: -30%;
   left: -5%;
@@ -54,7 +52,8 @@ body::after {
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px) translateX(0px);
   }
   25% {
@@ -160,11 +159,9 @@ textarea:focus-visible {
 
 /* Dark mode basics */
 body.dark {
-  background:
-    radial-gradient(circle at 12% 12%, rgba(15,23,42,0.4) 0%, transparent 35%),
-    radial-gradient(circle at 84% 0%, rgba(17,24,39,0.35) 0%, transparent 30%),
-    radial-gradient(circle at 90% 92%, rgba(2,6,23,0.35) 0%, transparent 28%),
-    #0b1220;
+  background: radial-gradient(circle at 12% 12%, rgba(15, 23, 42, 0.4) 0%, transparent 35%),
+    radial-gradient(circle at 84% 0%, rgba(17, 24, 39, 0.35) 0%, transparent 30%),
+    radial-gradient(circle at 90% 92%, rgba(2, 6, 23, 0.35) 0%, transparent 28%), #0b1220;
   color: #e6eef8;
 }
 
@@ -191,17 +188,35 @@ body.dark ::-webkit-scrollbar-thumb {
   white-space: nowrap;
 }
 
-.max-w-dvw-70 { max-width: 70dvw; }
-.max-w-dvw-60 { max-width: 60dvw; }
-.max-w-dvw-50 { max-width: 50dvw; }
-.max-w-dvw-40 { max-width: 40dvw; }
-.max-w-dvw-30 { max-width: 30dvw; }
+.max-w-dvw-70 {
+  max-width: 70dvw;
+}
+.max-w-dvw-60 {
+  max-width: 60dvw;
+}
+.max-w-dvw-50 {
+  max-width: 50dvw;
+}
+.max-w-dvw-40 {
+  max-width: 40dvw;
+}
+.max-w-dvw-30 {
+  max-width: 30dvw;
+}
 
 /* Helpful percentage-based fallbacks for older browsers */
-.max-w-pct-90 { max-width: 90%; }
-.max-w-pct-75 { max-width: 75%; }
-.max-w-pct-50 { max-width: 50%; }
+.max-w-pct-90 {
+  max-width: 90%;
+}
+.max-w-pct-75 {
+  max-width: 75%;
+}
+.max-w-pct-50 {
+  max-width: 50%;
+}
 
 /* Utility to ensure flex items can shrink and truncate properly */
-.flex-truncate { min-width: 0; overflow: hidden; }
-
+.flex-truncate {
+  min-width: 0;
+  overflow: hidden;
+}

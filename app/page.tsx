@@ -1,19 +1,28 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { BookOpen, Mic, Eye, Target, PlusCircle, AlertCircle, Square, Settings } from 'lucide-react';
-import SettingsModal from '@/components/SettingsModal';
-import { formatDuration } from '@/lib/utils';
-import { useAppStore } from '@/lib/store';
-import { useSessions } from '@/hooks/useRecorder';
-import SessionHistory from '@/components/SessionHistory';
-import RecorderComponent from '@/components/RecorderComponent';
-import ToastContainer from '@/components/ToastContainer';
-import type { Session } from '@/lib/types';
-import SessionDetail from '@/components/SessionDetail';
+import React, { useEffect, useState } from "react";
+import {
+  BookOpen,
+  Mic,
+  Eye,
+  Target,
+  PlusCircle,
+  AlertCircle,
+  Square,
+  Settings,
+} from "lucide-react";
+import SettingsModal from "@/components/SettingsModal";
+import { formatDuration } from "@/lib/utils";
+import { useAppStore } from "@/lib/store";
+import { useSessions } from "@/hooks/useRecorder";
+import SessionHistory from "@/components/SessionHistory";
+import RecorderComponent from "@/components/RecorderComponent";
+import ToastContainer from "@/components/ToastContainer";
+import type { Session } from "@/lib/types";
+import SessionDetail from "@/components/SessionDetail";
 
 export default function Home() {
-  const [view, setView] = useState<'recorder' | 'session'>('recorder');
+  const [view, setView] = useState<"recorder" | "session">("recorder");
   const [showMobileList, setShowMobileList] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -39,7 +48,7 @@ export default function Home() {
       try {
         await fetchSessions();
       } catch (err) {
-        console.error('Failed to load sessions:', err);
+        console.error("Failed to load sessions:", err);
       } finally {
         setLoadingInitial(false);
       }
@@ -49,18 +58,18 @@ export default function Home() {
   }, []);
 
   const handleCreateNew = async () => {
-    setView('recorder');
+    setView("recorder");
     setCurrentSession(null);
   };
 
   const handleSessionSaved = (session: Session) => {
     setCurrentSession(session);
-    setView('session');
+    setView("session");
   };
 
   const handleSelectSession = (session: Session) => {
     setCurrentSession(session);
-    setView('session');
+    setView("session");
   };
 
   const handleUpdateSession = async (session: Session) => {
@@ -78,10 +87,16 @@ export default function Home() {
         <div className="sticky top-0 z-20 px-5 py-4 border-b border-[#EAEAEB] flex items-center justify-between">
           <div className="flex gap-2 items-center">
             <BookOpen size={18} className="text-slate-800" />
-            <span className="text-[15px] font-semibold text-slate-800 tracking-tight">StudyBuddy</span>
+            <span className="text-[15px] font-semibold text-slate-800 tracking-tight">
+              StudyBuddy
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowSettings(true)} title="Ajustes" className="p-2 rounded hover:bg-slate-100">
+            <button
+              onClick={() => setShowSettings(true)}
+              title="Ajustes"
+              className="p-2 rounded hover:bg-slate-100"
+            >
               <Settings size={16} />
             </button>
           </div>
@@ -107,18 +122,22 @@ export default function Home() {
               StudyBuddy
             </h1>
             <nav role="tablist" aria-label="Main navigation" className="flex gap-2">
-              <button onClick={() => setShowSettings(true)} className="min-w-[44px] px-3 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900" title="Ajustes">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="min-w-[44px] px-3 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                title="Ajustes"
+              >
                 <Settings size={16} />
               </button>
               <button
                 role="tab"
-                aria-pressed={view === 'recorder'}
-                aria-current={view === 'recorder' ? 'true' : undefined}
+                aria-pressed={view === "recorder"}
+                aria-current={view === "recorder" ? "true" : undefined}
                 onClick={handleCreateNew}
                 className={`min-w-[88px] px-4 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                  view === 'recorder'
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  view === "recorder"
+                    ? "bg-slate-800 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
                 <Mic size={16} />
@@ -126,13 +145,16 @@ export default function Home() {
               </button>
               <button
                 role="tab"
-                aria-pressed={view === 'session'}
-                aria-current={view === 'session' && currentSession ? 'true' : undefined}
-                onClick={() => { setView('session'); setShowMobileList(true); }}
+                aria-pressed={view === "session"}
+                aria-current={view === "session" && currentSession ? "true" : undefined}
+                onClick={() => {
+                  setView("session");
+                  setShowMobileList(true);
+                }}
                 className={`min-w-[88px] px-4 py-2 rounded-md font-medium text-[14px] transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                  view === 'session'
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  view === "session"
+                    ? "bg-slate-800 text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
                 <Eye size={16} />
@@ -148,13 +170,18 @@ export default function Home() {
             <div className="w-full max-w-md bg-white rounded-lg shadow-lg overflow-hidden">
               <div className="flex items-center justify-between p-3 border-b">
                 <h3 className="text-sm font-semibold">Grabaciones</h3>
-                <button onClick={() => setShowMobileList(false)} className="px-2 py-1 text-sm">Cerrar</button>
+                <button onClick={() => setShowMobileList(false)} className="px-2 py-1 text-sm">
+                  Cerrar
+                </button>
               </div>
               <div className="p-3 max-h-[70vh] overflow-y-auto">
                 <SessionHistory
                   sessions={sessions}
                   currentSession={currentSession}
-                  onSelectSession={(s) => { setShowMobileList(false); handleSelectSession(s); }}
+                  onSelectSession={(s) => {
+                    setShowMobileList(false);
+                    handleSelectSession(s);
+                  }}
                   onDeleteSession={handleDeleteSession}
                   onCreateNew={handleCreateNew}
                 />
@@ -174,7 +201,7 @@ export default function Home() {
             </div>
           ) : (
             <>
-              {view === 'recorder' ? (
+              {view === "recorder" ? (
                 <RecorderComponent
                   onCreateSession={createSession}
                   onSessionSaved={handleSessionSaved}
@@ -183,7 +210,7 @@ export default function Home() {
                 <SessionDetail
                   session={currentSession}
                   onUpdate={handleUpdateSession}
-                  onBack={() => setView('recorder')}
+                  onBack={() => setView("recorder")}
                 />
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center min-h-[500px]">
@@ -193,12 +220,13 @@ export default function Home() {
                         <Target size={24} className="text-slate-400" />
                       </div>
                     </div>
-                      <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                        No hay grabación seleccionada
-                      </h3>
-                      <p className="text-[14px] text-slate-500 mb-8">
-                        Selecciona una grabación existente desde la barra lateral o inicia una nueva para comenzar a capturar notas.
-                      </p>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                      No hay grabación seleccionada
+                    </h3>
+                    <p className="text-[14px] text-slate-500 mb-8">
+                      Selecciona una grabación existente desde la barra lateral o inicia una nueva
+                      para comenzar a capturar notas.
+                    </p>
                     <button
                       onClick={handleCreateNew}
                       className="inline-flex items-center gap-2 rounded-md bg-slate-900 text-white px-5 py-2.5 text-[14px] font-medium hover:bg-slate-800 transition-colors shadow-sm"
@@ -216,7 +244,10 @@ export default function Home() {
         {/* Error Notification */}
         {error && (
           <div className="absolute bottom-4 right-4 max-w-sm p-4 bg-red-50 border border-red-200 rounded-xl shadow-lg">
-            <p className="text-red-800 text-sm font-medium flex items-center gap-2"><AlertCircle size={14} />{error}</p>
+            <p className="text-red-800 text-sm font-medium flex items-center gap-2">
+              <AlertCircle size={14} />
+              {error}
+            </p>
           </div>
         )}
       </div>

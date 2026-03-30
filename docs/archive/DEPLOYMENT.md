@@ -38,6 +38,7 @@ npm run dev
 Visit: http://localhost:3000
 
 **Quick test:**
+
 - Click "New Recording"
 - Record 10 seconds of audio
 - Verify transcription appears
@@ -88,11 +89,11 @@ git push -u origin main
 
 Click "Environment Variables" and add:
 
-| Name | Value | Environments |
-|------|-------|--------------|
-| GROQ_API_KEY | `gsk_your_key` | Production, Preview, Development |
+| Name             | Value          | Environments                     |
+| ---------------- | -------------- | -------------------------------- |
+| GROQ_API_KEY     | `gsk_your_key` | Production, Preview, Development |
 | GROQ_LLM_API_KEY | `gsk_your_key` | Production, Preview, Development |
-| USE_KV_DATABASE | `false` | Production, Preview, Development |
+| USE_KV_DATABASE  | `false`        | Production, Preview, Development |
 
 #### 3.4 Deploy
 
@@ -189,7 +190,7 @@ Copy these from the KV database page:
 ## Performance Checklist
 
 - [ ] Audio compressed before upload (~50-500KB per minute)
-- [ ] Transcripts chunked before summarization
+- [ ] Transcripts chunked before summarization (prevents token limits)
 - [ ] Database queries optimized
 - [ ] TailwindCSS styles purged
 - [ ] Functions execute under 10 seconds
@@ -215,6 +216,7 @@ Groq Console → Usage Analytics
 **Error:** `ERR! Build failed`
 
 **Solution:**
+
 ```bash
 npm cache clean --force
 npm install
@@ -226,6 +228,7 @@ Then redeploy.
 ### Issue: 500 Error on /api/transcribe
 
 **Check:**
+
 1. Vercel logs for error details
 2. Verify `GROQ_API_KEY` is set
 3. Check Groq API status page
@@ -236,6 +239,7 @@ Then redeploy.
 ### Issue: Sessions Not Persisting
 
 **Check:**
+
 1. Is `USE_KV_DATABASE` set to `true`?
 2. Are KV environment variables configured?
 3. Check if KV database is active
@@ -245,11 +249,13 @@ Then redeploy.
 ### Issue: Audio Not Recording
 
 **Check:**
+
 1. Browser supports MediaRecorder API (most modern browsers)
 2. User granted microphone permission
 3. HTTPS enabled (required for mic access)
 
 **Test in:**
+
 - Chrome ✅
 - Firefox ✅
 - Safari 14.1+ ✅
@@ -258,6 +264,7 @@ Then redeploy.
 ### Issue: Slow Transcription
 
 **Causes:**
+
 1. Network latency
 2. Audio too long (process in chunks)
 3. Groq API slow (depends on load)
@@ -295,11 +302,13 @@ Before going live:
 ## Scaling Notes
 
 **Free tier supports:**
+
 - ~90 transcriptions/day (Groq limit)
 - ~1000 sessions (depending on storage)
 - ~100 concurrent users
 
 **For production:**
+
 1. Upgrade Groq plan
 2. Set up Vercel KV (persistent storage)
 3. Monitor function execution time
@@ -308,12 +317,12 @@ Before going live:
 
 ## Cost Estimation
 
-| Service | Free Tier | Production |
-|---------|-----------|------------|
-| Vercel | ✅ (12 function invocations/month) | $2.50 + |
-| Groq | ~$2 free credits (~90 requests) | $0.005-$0.01/request |
-| Vercel KV | Up to 10MB | $0.20/GB storage |
-| **Total (MVP)** | **Free** | **$5-10/month** |
+| Service         | Free Tier                          | Production           |
+| --------------- | ---------------------------------- | -------------------- |
+| Vercel          | ✅ (12 function invocations/month) | $2.50 +              |
+| Groq            | ~$2 free credits (~90 requests)    | $0.005-$0.01/request |
+| Vercel KV       | Up to 10MB                         | $0.20/GB storage     |
+| **Total (MVP)** | **Free**                           | **$5-10/month**      |
 
 ## Support & Resources
 

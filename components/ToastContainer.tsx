@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useAppStore } from '@/lib/store';
+import { useEffect } from "react";
+import { useAppStore } from "@/lib/store";
 
 export default function ToastContainer() {
   const { toasts, removeToast } = useAppStore();
@@ -30,11 +30,11 @@ export default function ToastContainer() {
     <div className="fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2">
       {toasts.map((toast) => {
         const toneClass =
-          toast.type === 'success'
-            ? 'border-green-200 bg-green-50 text-green-800'
-            : toast.type === 'error'
-            ? 'border-red-200 bg-red-50 text-red-800'
-            : 'border-blue-200 bg-blue-50 text-blue-800';
+          toast.type === "success"
+            ? "border-green-200 bg-green-50 text-green-800"
+            : toast.type === "error"
+            ? "border-red-200 bg-red-50 text-red-800"
+            : "border-blue-200 bg-blue-50 text-blue-800";
 
         return (
           <div

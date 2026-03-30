@@ -211,6 +211,7 @@ AppStore (Zustand)
 ### POST /api/transcribe
 
 **Serverless Function:**
+
 - Receives: FormData (audio blob + language)
 - Process: Call Groq Whisper API
 - Return: {text, language}
@@ -218,6 +219,7 @@ AppStore (Zustand)
 - Replicas: Auto-scaled by Vercel
 
 **Error Handling:**
+
 ```
 Missing audio → 400
 API key invalid → 500
@@ -228,6 +230,7 @@ Audio too large → 413
 ### POST /api/summarize
 
 **Serverless Function:**
+
 - Receives: JSON {transcript}
 - Process: Chunk transcript, call LLM
 - Return: {summary: {executiveSummary, keyPoints, lectureNotes, actionableInsights}}
@@ -240,6 +243,7 @@ Groq returns complete response (no streaming needed for MVP)
 ### GET/POST/PUT/DELETE /api/sessions[/:id]
 
 **CRUD Operations:**
+
 - GET /api/sessions: List all (sorted by date)
 - POST /api/sessions: Create new
 - GET /api/sessions/:id: Get specific
@@ -247,6 +251,7 @@ Groq returns complete response (no streaming needed for MVP)
 - DELETE /api/sessions/:id: Delete
 
 **Error Handling:**
+
 ```
 Missing ID → 400
 Not found → 404
@@ -280,17 +285,20 @@ Value: [id1, id2, id3, ...] (sorted by date)
 ## Performance Characteristics
 
 ### Transcription
+
 - Audio chunk processing: 100-500ms per request
 - Groq API latency: 500ms - 2s
 - Client rendering: <100ms
 - **Total: 1-3 seconds**
 
 ### Summarization
+
 - Groq LLM inference: 2-5 seconds
 - JSON parsing: <100ms
 - **Total: 2-6 seconds**
 
 ### Session Save
+
 - Database write: <100ms
 - Zustand update: <10ms
 - **Total: <200ms**
@@ -298,6 +306,7 @@ Value: [id1, id2, id3, ...] (sorted by date)
 ## Error Handling Strategy
 
 ### Client-side
+
 ```
 Try/catch around API calls
 ↓
@@ -309,6 +318,7 @@ User can retry
 ```
 
 ### Server-side
+
 ```
 Validate input
 ↓
@@ -324,6 +334,7 @@ Log to Vercel Functions logs
 ## Security Measures
 
 ### API Security
+
 - API keys stored as environment secrets (never in code)
 - HTTPS enforced (Vercel automatic)
 - CORS headers configured
@@ -331,12 +342,14 @@ Log to Vercel Functions logs
 - Input validation on all endpoints
 
 ### Data Security
+
 - No PII stored
 - Session data client-side encrypted optional
 - HTTPS for all communication
 - No third-party tracking
 
 ### Deployment Security
+
 - Environment variables isolated per deployment
 - No logs contain sensitive data
 - Credentials never committed to git
@@ -344,6 +357,7 @@ Log to Vercel Functions logs
 ## Optimization Techniques
 
 ### Frontend
+
 1. **Code Splitting**: Next.js automatic
 2. **Tree Shaking**: TailwindCSS PurgeCSS
 3. **Lazy Loading**: React.lazy components
@@ -351,6 +365,7 @@ Log to Vercel Functions logs
 5. **Caching**: Zustand for local state
 
 ### Backend
+
 1. **Connection Pooling**: Vercel Functions managed
 2. **Request Batching**: Not needed (stateless)
 3. **Compression**: Gzip automatic
@@ -358,6 +373,7 @@ Log to Vercel Functions logs
 5. **Chunking**: Large transcripts split before LLM
 
 ### Network
+
 1. **HTTP/2**: Vercel provides
 2. **Preload Links**: Next.js prefetch
 3. **Minification**: Automatic
@@ -366,12 +382,14 @@ Log to Vercel Functions logs
 ## Scalability
 
 ### Current Limits
+
 - **Groq free tier**: ~90 requests/day
 - **Vercel functions**: 12/month free, unlimited pro
 - **KV storage**: 10GB free, more available
 - **Execution time**: 60s max per function
 
 ### Scaling Strategy
+
 1. **Groq**: Upgrade plan for more daily limits
 2. **Functions**: Vercel auto-scales horizontally
 3. **Storage**: Start with free KV, upgrade tier
@@ -380,17 +398,20 @@ Log to Vercel Functions logs
 ## Monitoring & Observability
 
 ### Logs
+
 - Vercel Functions dashboard → View logs
 - Errors exported to stderr
 - Timestamps & request IDs included
 
 ### Metrics
+
 - Response time per function
 - Error rate & types
 - API usage (Groq dashboard)
 - Storage usage (Vercel KV)
 
 ### Health Checks
+
 ```bash
 # Check deployment status
 curl https://your-deployment.vercel.app/api/sessions

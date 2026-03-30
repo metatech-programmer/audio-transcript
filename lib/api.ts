@@ -1,13 +1,13 @@
 // Public API client for easy integration
 
 export const API = {
-  async transcribe(audioBlob: Blob, language: 'en' | 'es' = 'en') {
+  async transcribe(audioBlob: Blob, language: "en" | "es" = "en") {
     const formData = new FormData();
-    formData.append('audio', audioBlob);
-    formData.append('language', language);
+    formData.append("audio", audioBlob);
+    formData.append("language", language);
 
-    const response = await fetch('/api/transcribe', {
-      method: 'POST',
+    const response = await fetch("/api/transcribe", {
+      method: "POST",
       body: formData,
     });
 
@@ -19,9 +19,9 @@ export const API = {
   },
 
   async summarize(transcript: string) {
-    const response = await fetch('/api/summarize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ transcript }),
     });
 
@@ -33,9 +33,9 @@ export const API = {
   },
 
   async getSessions() {
-    const response = await fetch('/api/sessions');
+    const response = await fetch("/api/sessions");
     if (!response.ok) {
-      throw new Error('Failed to fetch sessions');
+      throw new Error("Failed to fetch sessions");
     }
     return response.json();
   },
@@ -43,20 +43,20 @@ export const API = {
   async getSession(id: string) {
     const response = await fetch(`/api/sessions/${id}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch session');
+      throw new Error("Failed to fetch session");
     }
     return response.json();
   },
 
   async createSession(session: any) {
-    const response = await fetch('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(session),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to create session');
+      throw new Error("Failed to create session");
     }
 
     return response.json();
@@ -64,13 +64,13 @@ export const API = {
 
   async updateSession(id: string, updates: any) {
     const response = await fetch(`/api/sessions/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to update session');
+      throw new Error("Failed to update session");
     }
 
     return response.json();
@@ -78,11 +78,11 @@ export const API = {
 
   async deleteSession(id: string) {
     const response = await fetch(`/api/sessions/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
 
     if (!response.ok) {
-      throw new Error('Failed to delete session');
+      throw new Error("Failed to delete session");
     }
 
     return response.json();

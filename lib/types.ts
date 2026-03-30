@@ -5,7 +5,7 @@ export interface Session {
   title: string;
   date: string;
   duration: number;
-  language: 'en' | 'es';
+  language: "en" | "es";
   // Optional subject/classification for grouping
   subject?: string;
   transcript: string;
@@ -72,7 +72,7 @@ export interface Summary {
 export interface TranscriptionChunk {
   timestamp: number;
   text: string;
-  language: 'en' | 'es';
+  language: "en" | "es";
 }
 
 export interface RecorderState {
@@ -80,13 +80,13 @@ export interface RecorderState {
   isPaused: boolean;
   duration: number;
   transcript: string;
-  language: 'en' | 'es';
+  language: "en" | "es";
   isSummarizing: boolean;
   error: string | null;
 }
 
 export interface ExportOptions {
-  format: 'txt' | 'md' | 'json' | 'notion';
+  format: "txt" | "md" | "json" | "notion";
   includeTranscript: boolean;
   includeSummary: boolean;
 }

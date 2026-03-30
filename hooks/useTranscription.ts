@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useAppStore } from '@/lib/store';
-import type { Session, Summary } from '@/lib/types';
+import { useState } from "react";
+import { useAppStore } from "@/lib/store";
+import type { Session, Summary } from "@/lib/types";
 
 /**
  * Hook for transcribing audio
@@ -10,20 +10,17 @@ export function useTranscription() {
   const [error, setError] = useState<string | null>(null);
   const { setTranscript } = useAppStore();
 
-  const transcribe = async (
-    audioBlob: Blob,
-    language: 'en' | 'es'
-  ): Promise<string> => {
+  const transcribe = async (audioBlob: Blob, language: "en" | "es"): Promise<string> => {
     setLoading(true);
     setError(null);
 
     try {
       const formData = new FormData();
-      formData.append('audio', audioBlob);
-      formData.append('language', language);
+      formData.append("audio", audioBlob);
+      formData.append("language", language);
 
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
         body: formData,
       });
 
@@ -35,9 +32,9 @@ export function useTranscription() {
       setTranscript(data.text);
       return data.text;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Transcription failed';
+      const message = err instanceof Error ? err.message : "Transcription failed";
       setError(message);
-      console.error('Transcription error:', err);
+      console.error("Transcription error:", err);
       throw err;
     } finally {
       setLoading(false);
@@ -55,15 +52,15 @@ export function useSummarization() {
   const [error, setError] = useState<string | null>(null);
   const { setSummarizing } = useAppStore();
 
-  const summarize = async (transcript: string, language: 'en' | 'es' = 'en'): Promise<Summary> => {
+  const summarize = async (transcript: string, language: "en" | "es" = "en"): Promise<Summary> => {
     setLoading(true);
     setSummarizing(true);
     setError(null);
 
     try {
-      const response = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ transcript, language }),
       });
 
@@ -74,9 +71,9 @@ export function useSummarization() {
       const data = await response.json();
       return data.summary;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Summarization failed';
+      const message = err instanceof Error ? err.message : "Summarization failed";
       setError(message);
-      console.error('Summarization error:', err);
+      console.error("Summarization error:", err);
       throw err;
     } finally {
       setLoading(false);
@@ -94,34 +91,31 @@ export function useExport() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const exportToFile = (
-    session: Session,
-    format: 'txt' | 'md' | 'json'
-  ): void => {
+  const exportToFile = (session: Session, format: "txt" | "md" | "json"): void => {
     try {
-      let content = '';
-      let filename = '';
+      let content = "";
+      let filename = "";
 
       switch (format) {
-        case 'txt':
+        case "txt":
           content = exportAsText(session);
-          filename = `${session.title.replace(/\s+/g, '_')}.txt`;
+          filename = `${session.title.replace(/\s+/g, "_")}.txt`;
           break;
-        case 'md':
+        case "md":
           content = exportAsMarkdown(session);
-          filename = `${session.title.replace(/\s+/g, '_')}.md`;
+          filename = `${session.title.replace(/\s+/g, "_")}.md`;
           break;
-        case 'json':
+        case "json":
           content = JSON.stringify(session, null, 2);
-          filename = `${session.title.replace(/\s+/g, '_')}.json`;
+          filename = `${session.title.replace(/\s+/g, "_")}.json`;
           break;
       }
 
       downloadFile(content, filename);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Export failed';
+      const message = err instanceof Error ? err.message : "Export failed";
       setError(message);
-      console.error('Export error:', err);
+      console.error("Export error:", err);
     }
   };
 
@@ -144,15 +138,15 @@ Duration: ${session.duration}s
 Language: ${session.language}
 
 TRANSCRIPT
-${'='.repeat(60)}
+${"=".repeat(60)}
 ${session.transcript}
 
 ${
   session.summary
     ? `SUMMARY
-${'='.repeat(60)}
+${"=".repeat(60)}
 ${session.summary.executiveSummary}`
-    : ''
+    : ""
 }
 `;
 }
@@ -163,7 +157,7 @@ function exportAsMarkdown(session: Session): string {
 **Date:** ${session.date}  
 **Duration:** ${session.duration}s  
 **Language:** ${session.language}  
-**Tags:** ${session.tags.join(', ') || 'None'}
+**Tags:** ${session.tags.join(", ") || "None"}
 
 ## Transcript
 
@@ -179,13 +173,13 @@ ${session.transcript}
 ${session.summary.executiveSummary}
 
 ### Key Points
-${session.summary.keyPoints.map((p) => `- ${p}`).join('\n')}
+${session.summary.keyPoints.map((p) => `- ${p}`).join("\n")}
 
 ### Lecture Notes
 ${session.summary.lectureNotes}
 
 ### Actionable Insights
-${session.summary.actionableInsights.map((i) => `- ${i}`).join('\n')}
+${session.summary.actionableInsights.map((i) => `- ${i}`).join("\n")}
 `;
   }
 
@@ -193,13 +187,13 @@ ${session.summary.actionableInsights.map((i) => `- ${i}`).join('\n')}
 }
 
 function downloadFile(content: string, filename: string): void {
-  const element = document.createElement('a');
-  const blob = new Blob([content], { type: 'text/plain' });
+  const element = document.createElement("a");
+  const blob = new Blob([content], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
 
-  element.setAttribute('href', url);
-  element.setAttribute('download', filename);
-  element.style.display = 'none';
+  element.setAttribute("href", url);
+  element.setAttribute("download", filename);
+  element.style.display = "none";
 
   document.body.appendChild(element);
   element.click();

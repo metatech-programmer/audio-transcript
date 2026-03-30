@@ -1,7 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { useAppStore } from '@/lib/store';
-import { transcribeAudio, generateId } from '@/lib/utils';
-import { saveFailedChunk, getAllFailedChunks, deleteFailedChunk, clearFailedChunksBySession, saveTranscriptChunk, getTranscriptChunksBySession, clearTranscriptChunksBySession } from '@/lib/idb';
+import { useEffect, useRef, useState } from "react";
+import { useAppStore } from "@/lib/store";
+import { transcribeAudio, generateId } from "@/lib/utils";
+import {
+  saveFailedChunk,
+  getAllFailedChunks,
+  deleteFailedChunk,
+  clearFailedChunksBySession,
+  saveTranscriptChunk,
+  getTranscriptChunksBySession,
+  clearTranscriptChunksBySession,
+} from "@/lib/idb";
 
 // Transcode helpers: convert an AudioBuffer to WAV ArrayBuffer
 function audioBufferToWav(buffer: AudioBuffer) {
@@ -10,18 +18,22 @@ function audioBufferToWav(buffer: AudioBuffer) {
   const bufferArray = new ArrayBuffer(length);
   const view = new DataView(bufferArray);
 
-  /* RIFF identifier */ writeString(view, 0, 'RIFF');
+  /* RIFF identifier */ writeString(view, 0, "RIFF");
   /* file length */ view.setUint32(4, 36 + buffer.length * numOfChan * 2, true);
-  /* RIFF type */ writeString(view, 8, 'WAVE');
-  /* format chunk identifier */ writeString(view, 12, 'fmt ');
+  /* RIFF type */ writeString(view, 8, "WAVE");
+  /* format chunk identifier */ writeString(view, 12, "fmt ");
   /* format chunk length */ view.setUint32(16, 16, true);
   /* sample format (raw) */ view.setUint16(20, 1, true);
   /* channel count */ view.setUint16(22, numOfChan, true);
   /* sample rate */ view.setUint32(24, buffer.sampleRate, true);
-  /* byte rate (sample rate * block align) */ view.setUint32(28, buffer.sampleRate * numOfChan * 2, true);
+  /* byte rate (sample rate * block align) */ view.setUint32(
+    28,
+    buffer.sampleRate * numOfChan * 2,
+    true
+  );
   /* block align (channel count * bytes per sample) */ view.setUint16(32, numOfChan * 2, true);
   /* bits per sample */ view.setUint16(34, 16, true);
-  /* data chunk identifier */ writeString(view, 36, 'data');
+  /* data chunk identifier */ writeString(view, 36, "data");
   /* data chunk length */ view.setUint32(40, buffer.length * numOfChan * 2, true);
 
   // write interleaved data
@@ -51,8 +63,11 @@ function writeString(view: DataView, offset: number, str: string) {
 }
 
 async function transcodeBlobToWav(blob: Blob): Promise<Blob> {
-  if (typeof window === 'undefined' || !(window.AudioContext || (window as any).webkitAudioContext)) {
-    throw new Error('AudioContext not available');
+  if (
+    typeof window === "undefined" ||
+    !(window.AudioContext || (window as any).webkitAudioContext)
+  ) {
+    throw new Error("AudioContext not available");
   }
 
   const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext) as any;
@@ -71,7 +86,7 @@ async function transcodeBlobToWav(blob: Blob): Promise<Blob> {
     src.start(0);
     const rendered = await offline.startRendering();
     const wavArray = audioBufferToWav(rendered);
-    return new Blob([wavArray], { type: 'audio/wav' });
+    return new Blob([wavArray], { type: "audio/wav" });
   } finally {
     try {
       audioCtx.close();
@@ -101,53 +116,54 @@ export function useAudioRecorder() {
   const animationFrameRef = useRef<number | null>(null);
   const speechRecognitionRef = useRef<any>(null);
   const isBrowserLiveRef = useRef(false);
-  const transcriptRef = useRef<string>('');
+  const transcriptRef = useRef<string>("");
   const isChunkTranscribingRef = useRef(false);
   const [isLiveTranscribing, setIsLiveTranscribing] = useState(false);
-  const [liveStatus, setLiveStatus] = useState<
-    'idle' | 'listening' | 'transcribing' | 'updated'
-  >('idle');
-  const [lastChunkText, setLastChunkText] = useState('');
+  const [liveStatus, setLiveStatus] = useState<"idle" | "listening" | "transcribing" | "updated">(
+    "idle"
+  );
+  const [lastChunkText, setLastChunkText] = useState("");
   const [processedChunks, setProcessedChunks] = useState(0);
   const [audioLevel, setAudioLevel] = useState(0);
   const [queuedCount, setQueuedCount] = useState(0);
   const [retrying, setRetrying] = useState(false);
-  const [liveEngine, setLiveEngine] = useState<'browser' | 'api'>('api');
-  const [liveEngineMode, setLiveEngineMode] = useState<'auto' | 'browser' | 'api'>('auto');
-  const [selectedDialect, setSelectedDialect] = useState('es-ES');
+  const [liveEngine, setLiveEngine] = useState<"browser" | "api">("api");
+  const [liveEngineMode, setLiveEngineMode] = useState<"auto" | "browser" | "api">("auto");
+  const [selectedDialect, setSelectedDialect] = useState("es-ES");
 
-  const { setRecording, setDuration, setRecorderError, setTranscript, recorder } =
-    useAppStore();
+  const { setRecording, setDuration, setRecorderError, setTranscript, recorder } = useAppStore();
 
   // Helper: read persisted per-chunk transcripts from IndexedDB and join them in order
   const readPersistedTranscript = async (sessionId: string | null) => {
     try {
-      if (!sessionId) return '';
+      if (!sessionId) return "";
       const arr = await getTranscriptChunksBySession(sessionId);
-      if (!Array.isArray(arr) || arr.length === 0) return '';
+      if (!Array.isArray(arr) || arr.length === 0) return "";
       // Sort by chunkIndex and dedupe
-      const sorted = arr.slice().sort((a: any, b: any) => (Number(a.chunkIndex) || 0) - (Number(b.chunkIndex) || 0));
+      const sorted = arr
+        .slice()
+        .sort((a: any, b: any) => (Number(a.chunkIndex) || 0) - (Number(b.chunkIndex) || 0));
       const seen = new Set<number>();
       const parts: string[] = [];
       for (const it of sorted) {
         const idx = Number(it?.chunkIndex ?? NaN);
         if (Number.isNaN(idx) || seen.has(idx)) continue;
         seen.add(idx);
-        const txt = it?.text ?? it?.transcript ?? '';
+        const txt = it?.text ?? it?.transcript ?? "";
         if (txt && String(txt).trim()) parts.push(String(txt).trim());
       }
-      return parts.join(' ').trim();
+      return parts.join(" ").trim();
     } catch (e) {
-      return '';
+      return "";
     }
   };
 
   // Helper: return details about persisted transcript (text, count, lastSavedAt)
   const readPersistedTranscriptDetails = async (sessionId: string | null) => {
     try {
-      if (!sessionId) return { text: '', count: 0, lastSavedAt: null };
+      if (!sessionId) return { text: "", count: 0, lastSavedAt: null };
       const arr = await getTranscriptChunksBySession(sessionId);
-      if (!Array.isArray(arr) || arr.length === 0) return { text: '', count: 0, lastSavedAt: null };
+      if (!Array.isArray(arr) || arr.length === 0) return { text: "", count: 0, lastSavedAt: null };
       const text = await readPersistedTranscript(sessionId);
       const count = arr.length;
       // pick most recent savedAt if available
@@ -155,11 +171,15 @@ export function useAudioRecorder() {
       const lastSavedAt = savedTimes.length ? savedTimes[savedTimes.length - 1] : null;
       return { text, count, lastSavedAt };
     } catch {
-      return { text: '', count: 0, lastSavedAt: null };
+      return { text: "", count: 0, lastSavedAt: null };
     }
   };
 
-  const startRecording = async (opts?: { engineMode?: 'auto' | 'browser' | 'api'; dialect?: string; stream?: MediaStream }) => {
+  const startRecording = async (opts?: {
+    engineMode?: "auto" | "browser" | "api";
+    dialect?: string;
+    stream?: MediaStream;
+  }) => {
     try {
       if (recorder.isRecording) return;
 
@@ -167,8 +187,9 @@ export function useAudioRecorder() {
       const stream = providedStream ?? (await navigator.mediaDevices.getUserMedia({ audio: true }));
       streamRef.current = stream;
 
-      const MediaRec = typeof MediaRecorder !== 'undefined' ? MediaRecorder : (window as any).MediaRecorder;
-      const mr = new MediaRec(stream, { mimeType: 'audio/webm;codecs=opus' });
+      const MediaRec =
+        typeof MediaRecorder !== "undefined" ? MediaRecorder : (window as any).MediaRecorder;
+      const mr = new MediaRec(stream, { mimeType: "audio/webm;codecs=opus" });
       mediaRecorderRef.current = mr;
       audioChunksRef.current = [];
 
@@ -201,7 +222,7 @@ export function useAudioRecorder() {
 
       mr.start(800);
       setRecording(true);
-      transcriptRef.current = '';
+      transcriptRef.current = "";
 
       let seconds = 0;
       if (timerRef.current) clearInterval(timerRef.current as any);
@@ -210,9 +231,9 @@ export function useAudioRecorder() {
         setDuration(seconds);
       }, 1000);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to start recording';
+      const message = error instanceof Error ? error.message : "Failed to start recording";
       setRecorderError(message);
-      console.error('Recording error:', error);
+      console.error("Recording error:", error);
     }
   };
 
@@ -226,7 +247,11 @@ export function useAudioRecorder() {
       const mediaRecorder = mediaRecorderRef.current;
       mediaRecorder.onstop = async () => {
         // If no chunks collected yet, ask MediaRecorder to emit buffered data and wait briefly.
-        if (audioChunksRef.current.length === 0 && mediaRecorder && mediaRecorder.state !== 'inactive') {
+        if (
+          audioChunksRef.current.length === 0 &&
+          mediaRecorder &&
+          mediaRecorder.state !== "inactive"
+        ) {
           try {
             mediaRecorder.requestData();
             // Wait a short time for ondataavailable to run and push chunks
@@ -235,7 +260,7 @@ export function useAudioRecorder() {
         }
 
         const audioBlob = new Blob(audioChunksRef.current, {
-          type: 'audio/webm;codecs=opus',
+          type: "audio/webm;codecs=opus",
         });
 
         // Attempt a final full transcription of the entire recording, but do not
@@ -249,7 +274,7 @@ export function useAudioRecorder() {
             softFail: true,
           });
         } catch (err) {
-          console.error('Final transcription error:', err);
+          console.error("Final transcription error:", err);
           finalText = null;
         }
         // Send any remaining rotated chunk to server as final
@@ -258,15 +283,15 @@ export function useAudioRecorder() {
             await rotateFuncRef.current(true);
           }
         } catch (e) {
-          console.debug('Final rotate/send failed', e);
+          console.debug("Final rotate/send failed", e);
         }
         // Reconstruct the best-available transcript: prefer persisted per-chunk
         // transcripts (they are saved as chunks complete), fall back to finalText
         // if no persisted content exists, otherwise merge if finalText is longer.
         try {
           const persisted = await readPersistedTranscript(sessionIdRef.current);
-          const cleanedFinal = finalText ? String(finalText).trim() : '';
-          let chosen = '';
+          const cleanedFinal = finalText ? String(finalText).trim() : "";
+          let chosen = "";
           if (persisted && persisted.length > 0) {
             // If final transcription produced extra unique content, append it.
             if (cleanedFinal && cleanedFinal.length > persisted.length + 20) {
@@ -296,14 +321,14 @@ export function useAudioRecorder() {
             rotateTimerRef.current = null;
           }
         } catch {}
-        
+
         resolve(audioBlob);
       };
 
       mediaRecorder.stop();
       setRecording(false);
       setIsLiveTranscribing(false);
-      setLiveStatus('idle');
+      setLiveStatus("idle");
       setAudioLevel(0);
 
       if (speechRecognitionRef.current) {
@@ -385,12 +410,12 @@ export function useAudioRecorder() {
       }
     };
 
-    window.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('pagehide', onVisibilityChange as any);
+    window.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onVisibilityChange as any);
 
     return () => {
-      window.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('pagehide', onVisibilityChange as any);
+      window.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onVisibilityChange as any);
     };
   }, []);
 
@@ -416,28 +441,28 @@ export function useAudioRecorder() {
         try {
           // Validate queued item before attempting to resend
           if (!item || !item.blob) {
-            console.warn('processQueue: invalid queued item, deleting', item?.id);
+            console.warn("processQueue: invalid queued item, deleting", item?.id);
             await deleteFailedChunk(item.id);
             continue;
           }
 
           if (item.blob.size === 0) {
-            console.warn('processQueue: queued blob empty, deleting', item.id);
+            console.warn("processQueue: queued blob empty, deleting", item.id);
             await deleteFailedChunk(item.id);
             continue;
           }
 
           const form = new FormData();
-          form.append('audio', item.blob, `retry_${item.sessionId}_${item.chunkIndex}.webm`);
-          form.append('sessionId', item.sessionId || '');
-          form.append('chunkIndex', String(item.chunkIndex));
-          form.append('final', item.final ? '1' : '0');
-          form.append('language', item.language || recorder.language);
+          form.append("audio", item.blob, `retry_${item.sessionId}_${item.chunkIndex}.webm`);
+          form.append("sessionId", item.sessionId || "");
+          form.append("chunkIndex", String(item.chunkIndex));
+          form.append("final", item.final ? "1" : "0");
+          form.append("language", item.language || recorder.language);
 
-          const resp = await fetch('/api/transcribe-chunk', { method: 'POST', body: form });
+          const resp = await fetch("/api/transcribe-chunk", { method: "POST", body: form });
           if (resp.ok) {
             const payload = await resp.json();
-            const text = payload.text || '';
+            const text = payload.text || "";
             if (text && text.trim()) {
               transcriptRef.current = `${transcriptRef.current} ${text.trim()}`.trim();
               setTranscript(transcriptRef.current);
@@ -524,7 +549,8 @@ export function useAudioRecorder() {
     clearQueue,
     sessionId: sessionIdRef.current,
     reconstructPersistedTranscript: () => readPersistedTranscript(sessionIdRef.current),
-    reconstructPersistedTranscriptDetails: () => readPersistedTranscriptDetails(sessionIdRef.current),
+    reconstructPersistedTranscriptDetails: () =>
+      readPersistedTranscriptDetails(sessionIdRef.current),
   };
 }
 
@@ -535,26 +561,20 @@ export function useSessions() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const {
-    sessions,
-    currentSession,
-    setSessions,
-    setCurrentSession,
-    addSession,
-    updateSession,
-  } = useAppStore();
+  const { sessions, currentSession, setSessions, setCurrentSession, addSession, updateSession } =
+    useAppStore();
 
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/sessions');
-      if (!response.ok) throw new Error('Failed to fetch sessions');
+      const response = await fetch("/api/sessions");
+      if (!response.ok) throw new Error("Failed to fetch sessions");
       const data = await response.json();
       const apiSessions = data.sessions || [];
       // If API returns nothing (in-memory server), try client-side fallback
-      if ((!apiSessions || apiSessions.length === 0) && typeof window !== 'undefined') {
+      if ((!apiSessions || apiSessions.length === 0) && typeof window !== "undefined") {
         try {
-          const stored = window.localStorage.getItem('local_sessions');
+          const stored = window.localStorage.getItem("local_sessions");
           if (stored) {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed)) {
@@ -565,16 +585,16 @@ export function useSessions() {
             }
           }
         } catch (e) {
-          console.warn('Failed to parse local_sessions', e);
+          console.warn("Failed to parse local_sessions", e);
         }
       }
 
       setSessions(apiSessions);
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
-      console.error('Fetch error:', err);
+      console.error("Fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -582,32 +602,34 @@ export function useSessions() {
 
   const createSession = async (sessionData: any) => {
     try {
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(sessionData),
       });
 
-      if (!response.ok) throw new Error('Failed to create session');
+      if (!response.ok) throw new Error("Failed to create session");
 
       const data = await response.json();
       addSession(data.session);
       setCurrentSession(data.session);
       // Mirror to localStorage as fallback for persistence across reloads
       try {
-        const existing = typeof window !== 'undefined' ? window.localStorage.getItem('local_sessions') : null;
+        const existing =
+          typeof window !== "undefined" ? window.localStorage.getItem("local_sessions") : null;
         const list = existing ? JSON.parse(existing) : [];
         list.unshift(data.session);
-        if (typeof window !== 'undefined') window.localStorage.setItem('local_sessions', JSON.stringify(list));
+        if (typeof window !== "undefined")
+          window.localStorage.setItem("local_sessions", JSON.stringify(list));
       } catch (e) {
-        console.warn('Failed to write local_sessions', e);
+        console.warn("Failed to write local_sessions", e);
       }
       setError(null);
       return data.session;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
-      console.error('Create error:', err);
+      console.error("Create error:", err);
       throw err;
     }
   };
@@ -615,34 +637,46 @@ export function useSessions() {
   const updateSessionData = async (sessionId: string, updates: any) => {
     try {
       const response = await fetch(`/api/sessions/${sessionId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
 
       if (!response.ok) {
         // If server reports not found (e.g., in-memory store lost), fallback to local update
         if (response.status === 404) {
-          console.warn('Update API returned 404 — falling back to local update for session', sessionId);
-          const fallback = { ...(sessions.find(s => s.id === sessionId) || {}), ...updates, id: sessionId, updatedAt: new Date().toISOString() } as any;
+          console.warn(
+            "Update API returned 404 — falling back to local update for session",
+            sessionId
+          );
+          const fallback = {
+            ...(sessions.find((s) => s.id === sessionId) || {}),
+            ...updates,
+            id: sessionId,
+            updatedAt: new Date().toISOString(),
+          } as any;
           updateSession(fallback);
           setCurrentSession(fallback);
           try {
-            if (typeof window !== 'undefined') {
-              const existing = window.localStorage.getItem('local_sessions');
-              const list = existing ? JSON.parse(existing) as any[] : [];
+            if (typeof window !== "undefined") {
+              const existing = window.localStorage.getItem("local_sessions");
+              const list = existing ? (JSON.parse(existing) as any[]) : [];
               const idx = list.findIndex((s) => s.id === sessionId);
-              if (idx !== -1) { list[idx] = fallback; } else { list.unshift(fallback); }
-              window.localStorage.setItem('local_sessions', JSON.stringify(list));
+              if (idx !== -1) {
+                list[idx] = fallback;
+              } else {
+                list.unshift(fallback);
+              }
+              window.localStorage.setItem("local_sessions", JSON.stringify(list));
             }
           } catch (e) {
-            console.warn('Failed to sync fallback update to local_sessions', e);
+            console.warn("Failed to sync fallback update to local_sessions", e);
           }
           setError(null);
           return fallback;
         }
 
-        throw new Error('Failed to update session');
+        throw new Error("Failed to update session");
       }
 
       const data = await response.json();
@@ -650,26 +684,26 @@ export function useSessions() {
       setCurrentSession(data.session);
       // Update localStorage fallback
       try {
-        if (typeof window !== 'undefined') {
-          const existing = window.localStorage.getItem('local_sessions');
+        if (typeof window !== "undefined") {
+          const existing = window.localStorage.getItem("local_sessions");
           if (existing) {
             const list = JSON.parse(existing) as any[];
             const idx = list.findIndex((s) => s.id === data.session.id);
             if (idx !== -1) {
               list[idx] = data.session;
-              window.localStorage.setItem('local_sessions', JSON.stringify(list));
+              window.localStorage.setItem("local_sessions", JSON.stringify(list));
             }
           }
         }
       } catch (e) {
-        console.warn('Failed to sync updated session to local_sessions', e);
+        console.warn("Failed to sync updated session to local_sessions", e);
       }
       setError(null);
       return data.session;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
-      console.error('Update error:', err);
+      console.error("Update error:", err);
       throw err;
     }
   };
@@ -677,34 +711,34 @@ export function useSessions() {
   const deleteSessionData = async (sessionId: string) => {
     try {
       const response = await fetch(`/api/sessions/${sessionId}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
 
       if (!response.ok) {
         if (response.status === 404) {
           // Server doesn't know this session (in-memory dev server). Fallback to local removal.
-          console.warn('Delete API returned 404 — performing local delete fallback for', sessionId);
+          console.warn("Delete API returned 404 — performing local delete fallback for", sessionId);
           setSessions(sessions.filter((s) => s.id !== sessionId));
           if (currentSession?.id === sessionId) {
             setCurrentSession(null);
           }
           try {
-            if (typeof window !== 'undefined') {
-              const existing = window.localStorage.getItem('local_sessions');
+            if (typeof window !== "undefined") {
+              const existing = window.localStorage.getItem("local_sessions");
               if (existing) {
                 const list = JSON.parse(existing) as any[];
                 const filtered = list.filter((s) => s.id !== sessionId);
-                window.localStorage.setItem('local_sessions', JSON.stringify(filtered));
+                window.localStorage.setItem("local_sessions", JSON.stringify(filtered));
               }
             }
           } catch (e) {
-            console.warn('Failed to remove session from local_sessions during fallback delete', e);
+            console.warn("Failed to remove session from local_sessions during fallback delete", e);
           }
           setError(null);
           return;
         }
 
-        throw new Error('Failed to delete session');
+        throw new Error("Failed to delete session");
       }
 
       // Remove from store on success
@@ -714,22 +748,22 @@ export function useSessions() {
       }
       // Remove from localStorage fallback
       try {
-        if (typeof window !== 'undefined') {
-          const existing = window.localStorage.getItem('local_sessions');
+        if (typeof window !== "undefined") {
+          const existing = window.localStorage.getItem("local_sessions");
           if (existing) {
             const list = JSON.parse(existing) as any[];
             const filtered = list.filter((s) => s.id !== sessionId);
-            window.localStorage.setItem('local_sessions', JSON.stringify(filtered));
+            window.localStorage.setItem("local_sessions", JSON.stringify(filtered));
           }
         }
       } catch (e) {
-        console.warn('Failed to remove session from local_sessions', e);
+        console.warn("Failed to remove session from local_sessions", e);
       }
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
-      console.error('Delete error:', err);
+      console.error("Delete error:", err);
       throw err;
     }
   };

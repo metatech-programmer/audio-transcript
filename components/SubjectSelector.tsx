@@ -63,7 +63,9 @@ export default function SubjectSelector({ value, onChange }: SubjectSelectorProp
 
   return (
     <div>
-      <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">Materia</label>
+      <label className="text-[13px] font-semibold text-slate-700 flex items-center gap-2">
+        Materia
+      </label>
       <div className="mt-1 flex items-center gap-2 min-w-0">
         <select
           value={value ?? ""}
@@ -95,8 +97,18 @@ export default function SubjectSelector({ value, onChange }: SubjectSelectorProp
             placeholder="Nombre de la materia"
             className="flex-1 px-3 py-2 border rounded text-[13px] min-w-0 truncate overflow-hidden max-w-[70dvw] md:max-w-[45dvw] lg:max-w-[30dvw]"
           />
-          <button onClick={handleAdd} className="px-3 py-2 bg-slate-900 text-white rounded">Crear</button>
-          <button onClick={() => { setAdding(false); setNewName(""); }} className="px-3 py-2 border rounded">Cancelar</button>
+          <button onClick={handleAdd} className="px-3 py-2 bg-slate-900 text-white rounded">
+            Crear
+          </button>
+          <button
+            onClick={() => {
+              setAdding(false);
+              setNewName("");
+            }}
+            className="px-3 py-2 border rounded"
+          >
+            Cancelar
+          </button>
         </div>
       )}
 
