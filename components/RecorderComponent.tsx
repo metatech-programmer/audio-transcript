@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Globe, FileText } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { useAudioRecorder } from '@/hooks/useRecorder';
@@ -31,7 +31,6 @@ interface RecorderComponentProps {
   onCreateSession?: (sessionData: Partial<Session>) => Promise<Session>;
   onSessionSaved?: (session: Session) => void;
 }
-
 export default function RecorderComponent({
   onCreateSession,
   onSessionSaved,
@@ -44,6 +43,12 @@ export default function RecorderComponent({
   const [audioSource, setAudioSource] = useState<'mic' | 'tab' | 'system'>('mic');
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  // Detector visual de nivel de audio de la fuente seleccionada
+  const [previewLevel, setPreviewLevel] = useState(0);
+  const previewStreamRef = useRef<MediaStream | null>(null);
+  const previewAudioContextRef = useRef<AudioContext | null>(null);
+  const previewAnalyserRef = useRef<AnalyserNode | null>(null);
+  const previewAnimationRef = useRef<number | null>(null);
 
   const {
     startRecording,
@@ -99,8 +104,76 @@ export default function RecorderComponent({
   }, [recIsRecording, reconstructPersistedTranscriptDetails, persistedInfo.count, persistedInfo.lastSavedAt]);
 
   // Stop any existing persistent recorder when switching to tab/system capture
+  const stopPreviewStream = () => {
+    if (previewAnimationRef.current) cancelAnimationFrame(previewAnimationRef.current);
+    if (previewAnalyserRef.current) previewAnalyserRef.current.disconnect();
+    if (previewAudioContextRef.current) {
+      try { previewAudioContextRef.current.close(); } catch {}
+    }
+    if (previewStreamRef.current) {
+      previewStreamRef.current.getTracks().forEach(track => track.stop());
+      previewStreamRef.current = null;
+    }
+    previewAnalyserRef.current = null;
+    previewAudioContextRef.current = null;
+    previewAnimationRef.current = null;
+    setPreviewLevel(0);
+  };
+
+  const startPreviewStream = async (source: 'mic' | 'tab' | 'system', deviceId?: string | null) => {
+    stopPreviewStream();
+    try {
+      let stream: MediaStream | null = null;
+      if (source === 'mic') {
+        const constraints: MediaStreamConstraints = {
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+          },
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } else {
+        // tab/system
+        const disp = await navigator.mediaDevices.getDisplayMedia({ audio: true as any, video: true as any });
+        const audioTracks = disp.getAudioTracks();
+        const videoTracks = disp.getVideoTracks();
+        videoTracks.forEach(t => t.stop());
+        if (audioTracks.length > 0) {
+          stream = new MediaStream(audioTracks.map((t) => t));
+        } else {
+          disp.getTracks().forEach(t => t.stop());
+          setPreviewLevel(0);
+          return;
+        }
+      }
+      previewStreamRef.current = stream;
+      const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext) as any;
+      const audioCtx = new AudioCtx();
+      previewAudioContextRef.current = audioCtx;
+      const src = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      previewAnalyserRef.current = analyser;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        if (!previewAnalyserRef.current) return;
+        previewAnalyserRef.current.getByteFrequencyData(data);
+        const level = data.reduce((a, b) => a + b, 0) / data.length;
+        setPreviewLevel(Math.min(100, level / 2.55));
+        previewAnimationRef.current = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {
+      setPreviewLevel(0);
+    }
+  };
+
   const handleAudioSourceChange = async (value: 'mic' | 'tab' | 'system') => {
     setAudioSource(value);
+    stopPreviewStream();
     if (value === 'tab' || value === 'system') {
       try {
         const hostController = typeof window !== 'undefined' ? (window as any).__recorderController : null;
@@ -114,7 +187,23 @@ export default function RecorderComponent({
         }
       } catch {}
     }
+    // Lanzar preview de nivel de audio para la fuente seleccionada
+    setTimeout(() => startPreviewStream(value, value === 'mic' ? selectedDeviceId : undefined), 200);
   };
+
+  // Cuando cambia el micrófono seleccionado, reiniciar preview si corresponde
+  useEffect(() => {
+    if (audioSource === 'mic') {
+      stopPreviewStream();
+      setTimeout(() => startPreviewStream('mic', selectedDeviceId), 200);
+    }
+    // eslint-disable-next-line
+  }, [selectedDeviceId]);
+
+  // Limpiar preview al desmontar
+  useEffect(() => {
+    return () => { stopPreviewStream(); };
+  }, []);
 
   const [queuedItems, setQueuedItems] = useState<any[]>([]);
   const [showQueueDetails, setShowQueueDetails] = useState(false);
@@ -689,28 +778,25 @@ export default function RecorderComponent({
 
 
             {/* Sound Waves Animation y Transcripción en tiempo real */}
+            <div className="mb-4 rounded-xl bg-[#F9F9FA] border border-[#EAEAEB] p-6 h-28 flex items-center justify-center">
+              <SoundWaves isActive={isRecording || previewLevel > 0.5} audioLevel={isRecording ? audioLevel : previewLevel} />
+            </div>
             {isRecording && (
-              <>
-                <div className="mb-4 rounded-xl bg-[#F9F9FA] border border-[#EAEAEB] p-6 h-28 flex items-center justify-center">
-                  <SoundWaves isActive={isRecording} audioLevel={audioLevel} />
+              <div className="mb-8">
+                <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
+                  <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
+                    <FileText size={14} className="text-slate-500" /> Transcripción en tiempo real
+                  </h3>
+                  <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
+                    {/* Mostrar el transcript incremental en tiempo real si existe, si no el persistido, si no el placeholder */}
+                    {recorder.transcript && recorder.transcript.trim().length > 0
+                      ? recorder.transcript
+                      : (persistedInfo.text && persistedInfo.text.trim().length > 0
+                        ? persistedInfo.text
+                        : <span className="italic text-slate-400">Esperando audio...</span>)}
+                  </p>
                 </div>
-                {/* Real-time Transcript Box mejorada */}
-                <div className="mb-8">
-                  <div className="rounded-md border border-[#EAEAEB] bg-[#F9F9FA] p-5 shadow-sm">
-                    <h3 className="text-[13px] font-semibold text-slate-800 mb-3 flex items-center gap-1.5">
-                      <FileText size={14} className="text-slate-500" /> Transcripción en tiempo real
-                    </h3>
-                    <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto pr-2">
-                      {/* Mostrar el transcript incremental en tiempo real si existe, si no el persistido, si no el placeholder */}
-                      {recorder.transcript && recorder.transcript.trim().length > 0
-                        ? recorder.transcript
-                        : (persistedInfo.text && persistedInfo.text.trim().length > 0
-                          ? persistedInfo.text
-                          : <span className="italic text-slate-400">Esperando audio...</span>)}
-                    </p>
-                  </div>
-                </div>
-              </>
+              </div>
             )}
 
             {/* Action Buttons */}

@@ -1,123 +1,211 @@
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+import React, { useEffect, useRef, useState } from 'react';
 
 interface SoundWavesProps {
   isActive: boolean;
   audioLevel: number; // 0..100
 }
 
-// Small helper: generate a smooth wave path from samples
-function generateWavePath(samples: number[], height: number) {
-  if (!samples || samples.length === 0) return '';
-  const step = Math.max(1, Math.floor(samples.length / 60));
-  const w = samples.length;
-  let d = `M 0 ${height / 2 + samples[0]!.toFixed(2)}`;
-  for (let i = 1; i < w; i += step) {
-    const x = (i / (w - 1)) * 100; // percent-based
-    const y = height / 2 + samples[i]!;
-    d += ` L ${x} ${y.toFixed(2)}`;
+// Genera un path SVG usando curvas Bézier para una onda suave
+function generateBezierWavePath({
+  width,
+  height,
+  amplitude = 1,
+  frequency = 1,
+  phase = 0,
+  points = 80,
+  envelope = true,
+}: {
+  width: number;
+  height: number;
+  amplitude: number;
+  frequency: number;
+  phase: number;
+  points?: number;
+  envelope?: boolean;
+}) {
+  const midY = height / 2;
+  const step = width / (points - 1);
+  let d = '';
+  let prev = { x: 0, y: midY };
+  for (let i = 0; i < points; i++) {
+    const x = i * step;
+    // Envelope: atenuación tipo Gauss para que los extremos terminen en y=midY
+    const env = envelope
+      ? Math.exp(-0.5 * Math.pow((i - points / 2) / (points / 2.2), 2))
+      : 1;
+    const y = midY + Math.sin((i / points) * Math.PI * 2 * frequency + phase) * amplitude * env;
+    if (i === 0) {
+      d = `M ${x.toFixed(2)} ${y.toFixed(2)}`;
+    } else {
+      // Bézier cuadrática: control en el punto medio
+      const cx = (prev.x + x) / 2;
+      const cy = (prev.y + y) / 2;
+      d += ` Q ${prev.x.toFixed(2)} ${prev.y.toFixed(2)}, ${cx.toFixed(2)} ${cy.toFixed(2)}`;
+    }
+    prev = { x, y };
   }
+  // Termina en línea recta al final
+  d += ` L ${width.toFixed(2)} ${midY.toFixed(2)}`;
   return d;
 }
 
 export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
-  const width = 360;
-  const height = 96;
-  const [paths, setPaths] = useState<string[]>(['', '', '']);
-  const audioLevelRef = useRef<number>(audioLevel);
-  const rafRef = useRef<number | null>(null);
-  const phaseRef = useRef<number>(0);
+  // SVG dimensions
+  const width = 340;
+  const height = 80;
+  // Capas de onda mejoradas: más capas, más variedad visual
+  const layers = [
+    {
+      amplitude: 20,
+      frequency: 1.0,
+      phaseShift: 0,
+      strokeWidth: 2.6,
+      dash: '',
+      opacity: 1,
+      filter: 'url(#glow)',
+      gradient: 'url(#waveGradientMain)',
+    },
+    {
+      amplitude: 15,
+      frequency: 1.12,
+      phaseShift: 0.7,
+      strokeWidth: 1.7,
+      dash: '7 7',
+      opacity: 0.55,
+      filter: 'url(#glow)',
+      gradient: 'url(#waveGradientCyan)',
+    },
+    {
+      amplitude: 11,
+      frequency: 0.92,
+      phaseShift: -0.6,
+      strokeWidth: 1.2,
+      dash: '3 6',
+      opacity: 0.32,
+      filter: 'url(#glow)',
+      gradient: 'url(#waveGradientPurple)',
+    },
+    {
+      amplitude: 7,
+      frequency: 1.25,
+      phaseShift: 1.2,
+      strokeWidth: 0.9,
+      dash: '2 8',
+      opacity: 0.18,
+      filter: 'url(#glow)',
+      gradient: 'url(#waveGradientPink)',
+    },
+  ];
 
-  // keep ref updated for animation loop
+  const [phases, setPhases] = useState(Array(layers.length).fill(0));
+  const [paths, setPaths] = useState<string[]>(Array(layers.length).fill(''));
+  const audioLevelRef = useRef(audioLevel);
+  const rafRef = useRef<number | null>(null);
+
   useEffect(() => {
     audioLevelRef.current = audioLevel;
   }, [audioLevel]);
 
-  // Generate waveform samples (sine + small noise) per-layer
+  // Animación de ondas mejorada
   useEffect(() => {
-    const layers = 3;
-    let last = performance.now();
-
-    function frame(now: number) {
-      const dt = now - last;
-      last = now;
-      phaseRef.current += dt * 0.0025; // speed
-
-      const levelFactor = Math.max(0.06, Math.min(3, 0.06 + audioLevelRef.current / 60));
-
-      const newPaths: string[] = [];
-      for (let l = 0; l < layers; l++) {
-        const samples: number[] = [];
-        const amp = (6 + l * 6) * levelFactor * (isActive ? 1 : 0.25);
-        const freq = 0.9 + l * 0.35;
-        const phase = phaseRef.current * (1 + l * 0.2);
-        const jitter = 0.7 + l * 0.4;
-        const points = 160;
-        for (let i = 0; i < points; i++) {
-          const x = (i / (points - 1)) * (width - 20) + 10;
-          const t = (i / points) * Math.PI * 2 * freq + phase;
-          // combination of sine + pseudo-noise
-          const s = Math.sin(t) * amp * (1 + Math.sin(t * jitter) * 0.35);
-          samples.push(s + height / 2);
-        }
-        const d = generateWavePath(samples, height);
-        newPaths.push(d);
-      }
-
-      setPaths(newPaths);
-      rafRef.current = requestAnimationFrame(frame);
+    let running = true;
+    function animate() {
+      if (!running) return;
+      // El audioLevel modula la amplitud
+      const level = Math.max(0.08, Math.min(1.7, 0.08 + audioLevelRef.current / 55));
+      const now = performance.now();
+      // Fases independientes para cada capa, con más variación y velocidad
+      const newPhases = phases.map((p, i) =>
+        p + 0.028 + i * 0.018 + Math.sin(now / (900 + i * 200)) * (0.012 + i * 0.004)
+      );
+      setPhases(newPhases);
+      setPaths(
+        layers.map((layer, i) =>
+          generateBezierWavePath({
+            width,
+            height,
+            amplitude: layer.amplitude * level * (isActive ? 1 : 0.13 + i * 0.04),
+            frequency: layer.frequency + Math.sin(now / (1800 + i * 300)) * 0.08 + i * 0.04,
+            phase: (newPhases[i] ?? 0) + layer.phaseShift,
+            points: 90 + i * 14,
+            envelope: true,
+          })
+        )
+      );
+      rafRef.current = requestAnimationFrame(animate);
     }
-
-    rafRef.current = requestAnimationFrame(frame);
-
+    rafRef.current = requestAnimationFrame(animate);
     return () => {
+      running = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
+    // eslint-disable-next-line
   }, [isActive]);
-
-  // Colors & styles per layer
-  const layerStyles = useMemo(
-    () => [
-      { stroke: 'rgba(99,102,241,0.95)', strokeWidth: 2.6, opacity: 1 },
-      { stroke: 'rgba(59,130,246,0.65)', strokeWidth: 2, opacity: 0.8 },
-      { stroke: 'rgba(139,92,246,0.45)', strokeWidth: 1.6, opacity: 0.6 },
-    ],
-    []
-  );
 
   return (
     <div className="flex items-center justify-center" style={{ width }}>
       <svg
-        viewBox={`0 0 100 ${height}`}
-        preserveAspectRatio="none"
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
         style={{ width: '100%', height: `${height}px`, display: 'block' }}
         aria-hidden={!isActive}
       >
         <defs>
-          <linearGradient id="waveGrad" x1="0%" x2="100%">
-            <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.9" />
-            <stop offset="60%" stopColor="#3b82f6" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.5" />
+          {/* Gradientes para cada capa */}
+          <linearGradient id="waveGradientMain" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#a259ff" />
+            <stop offset="50%" stopColor="#fff1f9" />
+            <stop offset="100%" stopColor="#00ffe7" />
           </linearGradient>
+          <linearGradient id="waveGradientCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#00ffe7" />
+            <stop offset="100%" stopColor="#38bdf8" />
+          </linearGradient>
+          <linearGradient id="waveGradientPurple" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#a259ff" />
+            <stop offset="100%" stopColor="#6366f1" />
+          </linearGradient>
+          <linearGradient id="waveGradientPink" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#f472b6" />
+            <stop offset="100%" stopColor="#fff1f9" />
+          </linearGradient>
+          {/* Filtro de resplandor */}
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+            <feMerge>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
-
-        {paths.map((d, i) => (
-          <path
-            key={i}
-            d={d}
-            fill="none"
-            stroke={i === 0 ? 'url(#waveGrad)' : layerStyles[i]!.stroke}
-            strokeWidth={layerStyles[i]!.strokeWidth}
-            strokeLinecap="round"
-            style={{ opacity: isActive ? layerStyles[i]!.opacity : 0.18, transition: 'opacity 220ms' }}
-            strokeDasharray={i === 2 ? '6 12' : undefined}
-          />
-        ))}
-
-        {/* subtle glow when active */}
-        {isActive && (
-          <rect x="0" y="0" width="100%" height="100%" fill="none" />
-        )}
+        {paths.map((d, i) => {
+          const layer = layers[i] ?? {
+            amplitude: 10,
+            frequency: 1,
+            phaseShift: 0,
+            strokeWidth: 2,
+            dash: '',
+            opacity: 1,
+            filter: undefined,
+            gradient: 'url(#waveGradientMain)'
+          };
+          return (
+            <path
+              key={i}
+              d={d}
+              fill="none"
+              stroke={layer.gradient}
+              strokeWidth={layer.strokeWidth}
+              strokeDasharray={layer.dash}
+              strokeOpacity={layer.opacity}
+              filter={layer.filter}
+              style={{ transition: 'stroke-opacity 220ms' }}
+            />
+          );
+        })}
       </svg>
     </div>
   );

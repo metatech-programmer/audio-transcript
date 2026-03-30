@@ -58,23 +58,21 @@ npm install
 
 ### 3. Configure Environment Variables
 
-Create a `.env.local` file in the root directory:
+Copy the provided `.env.example` file to `.env.local` and fill in your API keys and configuration.
+
+On macOS / Linux:
 
 ```bash
-# Groq API (for transcription)
-GROQ_API_KEY=your_groq_api_key_here
-
-# Groq API (for summarization - can be same key)
-GROQ_LLM_API_KEY=your_groq_api_key_here
-
-# Storage (optional for local testing)
-USE_KV_DATABASE=false
-
-# For production Vercel KV setup:
-# KV_URL=your_kv_url
-# KV_REST_API_URL=your_kv_rest_api_url
-# KV_REST_API_TOKEN=your_kv_rest_api_token
+cp .env.example .env.local
 ```
+
+On Windows (PowerShell):
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Do not commit `.env.local` to the repository. Use `.env.example` as the reference for which values to set.
 
 ### 4. Get a Groq API Key
 
