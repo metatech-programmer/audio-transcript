@@ -141,7 +141,6 @@ export default function SoundWaves({ isActive, audioLevel }: SoundWavesProps) {
       running = false;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-    // eslint-disable-next-line
   }, [isActive]);
 
   return (

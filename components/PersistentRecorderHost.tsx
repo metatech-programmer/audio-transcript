@@ -31,7 +31,6 @@ export default function PersistentRecorderHost() {
       }
     };
     // Intentionally run only once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!mounted) return null;

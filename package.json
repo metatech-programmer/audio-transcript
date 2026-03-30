@@ -4,13 +4,21 @@
   "description": "Production-ready lecture transcription and summarization SaaS",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/metatech-programmer/audio-transcript.git"
+  },
+  "author": "metatech-programmer",
   "scripts": {
     "dev": "next dev",
     "dev:reset": "powershell -NoProfile -Command \"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -like '*record-audio*next*dev*' } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate -ErrorAction SilentlyContinue | Out-Null }\" && next dev",
     "dev:kill": "powershell -NoProfile -Command \"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'node.exe' -and $_.CommandLine -like '*record-audio*next*dev*' } | ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate -ErrorAction SilentlyContinue | Out-Null }\"",
     "build": "next build",
-    "start": "next start -p $PORT",
+    "start": "next start",
+    "preview": "next start",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "npm run lint && npm run type-check",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -30,6 +38,7 @@
     "autoprefixer": "^10.4.16",
     "eslint": "^9.22.0",
     "eslint-config-next": "^16.2.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3"
