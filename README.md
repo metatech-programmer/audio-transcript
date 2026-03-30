@@ -69,16 +69,9 @@ Abre http://localhost:3000
 
 ---
 
-## ✅ Qué he preparado para portafolio
+## ✅ Preparado para portafolio
 
-- Eliminé claves sensibles del repositorio y añadí `.env.example`.
-- Añadí `LICENSE` (MIT) y metadatos en `package.json`.
-- Configuré Prettier y formateé todo el código (`npm run format`).
-- Añadí CI básico con GitHub Actions (`.github/workflows/ci.yml`).
-- Limpié logs de depuración y corregí avisos de ESLint.
-
-> Nota: Si encontraste claves en commits históricos, deben rotarse
-> inmediatamente (ya reescribí el historial para eliminar `.env`).
+Este repositorio está preparado para su presentación en un portafolio público. El código y las configuraciones necesarias para el despliegue y desarrollo están incluidas; consulta la carpeta `docs/` para instrucciones detalladas de despliegue, pruebas y uso.
 
 ---
 
